@@ -1,0 +1,30 @@
+import type { Tier } from '@/game/types';
+
+export const STALL_CAP = 5;
+/** @deprecated use STALL_CAP */
+export const BOARD_CAP = STALL_CAP;
+export const BATTLE_CAP = STALL_CAP;
+export const WIN_TARGET = 10;
+export const STARTING_LIVES = 3;
+export const STARTING_GOLD = 13;
+export const STARTING_HP = 100;
+
+export const TIER_NAMES: readonly string[] = ['Bronze', 'Silver', 'Gold', 'Diamond'];
+export const TIER_COLORS: readonly string[] = ['#cd8d4f', '#cdd9e5', '#ffd75e', '#8ef0ff'];
+export const TIER_MULT: readonly number[] = [1, 2, 4, 8];
+export const PRICE_MULT: readonly number[] = [1, 1.8, 3.2, 5.5];
+
+export const SCALABLE_EFFECTS: readonly (keyof import('@/game/types').ItemEffects)[] = [
+  'dmg',
+  'shield',
+  'heal',
+  'burn',
+  'poison',
+  'income',
+];
+
+export const COMBAT_SUDDEN_DEATH_AT = 30;
+
+export function isValidTier(n: number): n is Tier {
+  return n >= 0 && n <= 3;
+}

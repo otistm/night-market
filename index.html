@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+
+  <meta charset="UTF-8">
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+  <meta name="theme-color" content="#0a0613">
+
+  <meta name="apple-mobile-web-app-capable" content="yes">
+
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+  <title>Night Market — Pocket Autobattler</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700;900&family=Spectral:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+
+</head>
+
+<body>
+
+  <div id="app">
+
+    <canvas id="bg3d"></canvas>
+
+    <div id="bg-grad"></div>
+
+    <canvas id="fx-canvas"></canvas>
+
+
+
+    <div class="screen on" id="title-screen">
+
+      <div class="kicker">A pocket autobattler</div>
+
+      <h1>NIGHT<br>MARKET</h1>
+
+      <div class="sub">Stock your stall with enchanted wares. When the lanterns dim, they fight for you.</div>
+
+      <button class="btn primary" id="btn-start">Open Your Stall</button>
+
+    </div>
+
+
+
+    <div class="screen" id="hero-screen">
+
+      <div class="kicker">Night I</div>
+
+      <h2>Choose your<br>peddler</h2>
+
+      <div class="hero-cards" id="hero-cards"></div>
+
+    </div>
+
+
+
+    <div class="screen" id="shop-screen">
+
+      <div id="hud">
+
+        <span class="day" id="hud-day">NIGHT I</span>
+
+        <div class="hud-stats">
+
+          <span class="stat-chip win" id="hud-wins" aria-label="Wins"><span class="stat-ico">⚔</span><span id="hud-wins-val">0 / 10</span></span>
+
+          <span class="stat-chip life" id="hud-lives" aria-label="Lanterns"><span class="stat-ico">🏮</span><span id="hud-lives-val">3 / 3</span></span>
+
+        </div>
+
+      </div>
+
+      <div id="shop-body">
+
+        <div class="wares-toolbar">
+
+          <span class="section-title">For sale</span>
+
+          <button class="btn btn-compact" id="btn-reroll">Reroll&nbsp;·&nbsp;<span class="coin"></span><span id="reroll-cost">1</span></button>
+
+        </div>
+
+        <div id="carousel" class="edge-track"></div>
+
+        <div class="section-title section-title-stall">Your stall</div>
+
+        <div id="board" class="stall-track scroll-lane__track"></div>
+
+        <div class="stall-slots" id="cap-label" aria-label="Stall slots"></div>
+
+      </div>
+
+    </div>
+
+
+
+    <div class="screen" id="battle-screen">
+
+      <div id="battle-top">
+
+        <span id="bt-timer" class="display">0.0</span>
+
+        <span class="day display" id="bt-day"></span>
+
+        <button class="btn ghost" id="btn-speed">1×</button>
+
+      </div>
+
+      <div class="fighter enemy" id="e-panel">
+
+        <div class="portrait" id="e-face">👹</div>
+
+        <div class="fi">
+
+          <div class="fname">
+
+            <span class="who" id="e-name"></span>
+
+            <span class="hpnum" id="e-hpnum"></span>
+
+          </div>
+
+          <div class="hpbar">
+
+            <div class="hp" id="e-hp"></div>
+
+            <div class="sh" id="e-sh"></div>
+
+            <div class="hpt" id="e-hpt"></div>
+
+          </div>
+
+          <div class="status-row">
+
+            <span class="st burn" id="e-burn">🔥<b></b></span>
+
+            <span class="st poison" id="e-poison">☠<b></b></span>
+
+            <span class="st shield" id="e-shield">🛡<b></b></span>
+
+          </div>
+
+        </div>
+
+      </div>
+
+      <div id="e-board" class="edge-track cboard"></div>
+
+      <div id="arena-gap">
+
+        <span id="vs-burst">FIGHT</span>
+
+        <div id="combat-log"></div>
+
+      </div>
+
+      <div id="p-board" class="edge-track cboard"></div>
+
+    </div>
+
+
+
+    <div id="result-screen"></div>
+
+
+
+    <div id="player-dock" class="hidden dock-mode-shop">
+
+      <button type="button" class="dock-avatar" id="dock-avatar" aria-label="Your peddler">
+
+        <span id="p-face">🧙</span>
+
+      </button>
+
+      <div class="dock-center">
+
+        <div class="dock-shop-readout">
+
+          <span class="gold"><span class="coin"></span><span id="hud-gold">0</span></span>
+
+        </div>
+
+        <div class="dock-battle-readout">
+
+          <div class="fname dock-fname">
+
+            <span class="who" id="p-name"></span>
+
+            <span class="hpnum" id="p-hpnum"></span>
+
+          </div>
+
+          <div class="hpbar dock-hpbar">
+
+            <div class="hp" id="p-hp"></div>
+
+            <div class="sh" id="p-sh"></div>
+
+            <div class="hpt" id="p-hpt"></div>
+
+          </div>
+
+          <div class="status-row dock-status">
+
+            <span class="st burn" id="p-burn">🔥<b></b></span>
+
+            <span class="st poison" id="p-poison">☠<b></b></span>
+
+            <span class="st shield" id="p-shield">🛡<b></b></span>
+
+          </div>
+
+        </div>
+
+      </div>
+
+      <button class="btn primary dock-fight" id="btn-fight">Battle</button>
+
+    </div>
+
+
+
+    <div class="overlay" id="sheet-overlay">
+
+      <div class="sheet" id="item-sheet"></div>
+
+    </div>
+
+    <div class="overlay" id="hero-overlay">
+
+      <div class="sheet" id="hero-sheet"></div>
+
+    </div>
+
+  </div>
+
+  <script type="module" src="/src/main.ts"></script>
+
+</body>
+
+</html>
+
