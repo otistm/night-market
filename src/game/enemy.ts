@@ -1,33 +1,25 @@
-import { ITEMS } from '@/data/items';
-import { RIVALS } from '@/data/rivals';
-import { BATTLE_CAP } from '@/config/constants';
-import type { EnemyMeta, ItemInstance, RunState } from '@/game/types';
-import { pick } from '@/utils/math';
+import { FIENDS } from '@/data/fiends';
+import type { EnemyMeta, RunState, Tier } from '@/game/types';
 import { createItemInstance } from '@/game/run-state';
-import { itemPrice } from '@/game/economy';
+
+/** Extra fiend HP per completed 10-night loop. */
+export const HP_PER_LOOP = 14;
 
 export function buildEnemy(run: RunState): EnemyMeta {
-  const rival = RIVALS[(run.day - 1) % RIVALS.length];
-  const budget = 4 + run.day * 4;
-  const hp = 76 + run.day * 14;
-  const board: ItemInstance[] = [];
-  let cap = BATTLE_CAP;
-  let spend = 0;
-  let guard = 40;
+  const fiend = FIENDS[(run.day - 1) % FIENDS.length];
+  const cycle = Math.floor((run.day - 1) / FIENDS.length);
+  const hp = fiend.baseHp + cycle * HP_PER_LOOP;
+  const board = fiend.wares.map((w) =>
+    createItemInstance(w.defId, Math.min(3, w.tier + cycle) as Tier),
+  );
 
-  while (spend < budget && cap > 0 && guard-- > 0) {
-    const pool = ITEMS.filter((d) => d.sz <= cap && !d.eff.income);
-    const def = pick(pool);
-    let tier: 0 | 1 | 2 | 3 = 0;
-    if (run.day >= 5 && Math.random() < 0.45) tier = 1;
-    if (run.day >= 8 && Math.random() < 0.35) tier = 2;
-    if (run.day >= 11 && Math.random() < 0.25) tier = 3;
-
-    const it = createItemInstance(def.id, tier);
-    board.push(it);
-    cap -= def.sz;
-    spend += itemPrice(it);
-  }
-
-  return { nm: rival.nm, face: rival.face, hp, board };
+  return {
+    nm: fiend.nm,
+    face: fiend.face,
+    hp,
+    board,
+    threat: fiend.threat,
+    hint: fiend.hint,
+    regen: fiend.regen,
+  };
 }

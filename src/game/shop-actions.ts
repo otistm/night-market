@@ -11,7 +11,7 @@ export interface ShopActionResult {
 }
 
 export function buyItem(run: RunState, it: ItemInstance, idx: number): ShopActionResult {
-  const price = itemPrice(it);
+  const price = itemPrice(it, run.hero);
   if (run.gold < price) return { ok: false, reason: 'no_gold' };
 
   const mergeTarget = findMergeTarget(run.board, it);

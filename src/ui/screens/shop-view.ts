@@ -23,7 +23,7 @@ export function renderShop(run: RunState): void {
   for (const it of run.shop) {
     if (!it) continue;
     any = true;
-    carousel.appendChild(createShopCard(it));
+    carousel.appendChild(createShopCard(it, run.hero));
   }
   if (!any) {
     carousel.innerHTML = '<div class="sold-out">Sold out — reroll for fresh wares</div>';

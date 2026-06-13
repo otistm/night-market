@@ -1,4 +1,4 @@
-import type { ItemInstance, ItemLocation } from '@/game/types';
+import type { HeroDef, ItemInstance, ItemLocation } from '@/game/types';
 import { getItemDef, itemPrice } from '@/game/economy';
 
 export function createItemElement(it: ItemInstance, where: ItemLocation): HTMLElement {
@@ -12,7 +12,7 @@ export function createItemElement(it: ItemInstance, where: ItemLocation): HTMLEl
   return el;
 }
 
-export function createShopCard(it: ItemInstance): HTMLElement {
+export function createShopCard(it: ItemInstance, hero?: HeroDef): HTMLElement {
   const def = getItemDef(it);
   const el = document.createElement('div');
   el.className = `shop-card t${it.tier}`;
@@ -22,7 +22,7 @@ export function createShopCard(it: ItemInstance): HTMLElement {
   el.innerHTML = `
     <span class="ico">${def.ico}</span>
     <span class="size-pips">${'<i></i>'.repeat(def.sz)}</span>
-    <footer class="shop-card-foot"><span class="price">${itemPrice(it)}</span></footer>`;
+    <footer class="shop-card-foot"><span class="price">${itemPrice(it, hero)}</span></footer>`;
   return el;
 }
 

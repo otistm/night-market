@@ -4,18 +4,21 @@ import type {
   CombatSide,
   CombatState,
   EnemyMeta,
+  HeroDef,
   ItemInstance,
   RunState,
 } from '@/game/types';
-import { getItemDef, itemStats, battleBoard } from '@/game/economy';
+import { getItemDef, itemStats } from '@/game/economy';
+import { weaponRampMult, arcaneSlowDamage } from '@/game/hero-passives';
 
 export type CombatEvent =
   | { type: 'damage'; side: 'p' | 'e'; amount: number; crit: boolean }
-  | { type: 'raw'; side: 'p' | 'e'; amount: number; kind: 'burn' | 'poison' | 'sudden' }
+  | { type: 'raw'; side: 'p' | 'e'; amount: number; kind: 'burn' | 'poison' | 'thorns' | 'sudden' }
   | { type: 'heal'; side: 'p' | 'e'; amount: number }
   | { type: 'shield'; side: 'p' | 'e'; amount: number }
   | { type: 'burn'; side: 'p' | 'e'; amount: number }
   | { type: 'poison'; side: 'p' | 'e'; amount: number }
+  | { type: 'curse'; side: 'p' | 'e'; duration: number }
   | { type: 'haste'; side: 'p' | 'e' }
   | { type: 'slow'; side: 'p' | 'e' }
   | { type: 'trigger'; side: 'p' | 'e'; itemUid: number; crit?: boolean }
@@ -23,24 +26,38 @@ export type CombatEvent =
   | { type: 'sudden_death'; damage: number }
   | { type: 'end'; won: boolean };
 
-function mkSide(hp: number, board: ItemInstance[], isPlayer: boolean, hero?: RunState['hero']): CombatSide {
+function mkSide(
+  hp: number,
+  board: ItemInstance[],
+  isPlayer: boolean,
+  hero?: HeroDef,
+  regen = 0,
+): CombatSide {
+  const items = board
+    .filter((it) => getItemDef(it).cd > 0)
+    .map((it) => ({
+      it,
+      st: itemStats(it, hero),
+      t: 0,
+      rampBonus: 0,
+      el: null,
+    }));
+
   return {
     hp,
     maxHp: hp,
     shield: 0,
     burn: 0,
     poison: 0,
+    curse: 0,
+    thorns: items.reduce((acc, ci) => acc + ci.st.thorns, 0),
+    regen,
     isPlayer,
+    hero,
     burnT: 0,
     poisonT: 0,
-    items: board
-      .filter((it) => getItemDef(it).cd > 0)
-      .map((it) => ({
-        it,
-        st: itemStats(it, isPlayer ? hero : undefined),
-        t: 0,
-        el: null,
-      })),
+    regenT: 0,
+    items,
   };
 }
 
@@ -50,8 +67,9 @@ export function createCombat(run: RunState, enemy: EnemyMeta): CombatState {
     over: false,
     sudden: false,
     sdT: 0,
-    p: mkSide(run.maxHp, battleBoard(run.board), true, run.hero),
-    e: mkSide(enemy.hp, enemy.board, false),
+    goldAtStart: run.gold,
+    p: mkSide(run.maxHp, run.board, true, run.hero),
+    e: mkSide(enemy.hp, enemy.board, false, undefined, enemy.regen ?? 0),
     enemyMeta: enemy,
   };
 }
@@ -62,9 +80,16 @@ export function resolveBattle(combat: CombatState): boolean {
   return combat.p.hp >= combat.e.hp;
 }
 
-function dealDamage(side: CombatSide, amt: number, events: CombatEvent[], key: 'p' | 'e', crit: boolean): number {
+function dealDamage(
+  side: CombatSide,
+  amt: number,
+  events: CombatEvent[],
+  key: 'p' | 'e',
+  crit: boolean,
+  pierce = false,
+): number {
   let left = amt;
-  if (side.shield > 0) {
+  if (!pierce && side.shield > 0) {
     const absorbed = Math.min(side.shield, left);
     side.shield -= absorbed;
     left -= absorbed;
@@ -77,7 +102,9 @@ function dealDamage(side: CombatSide, amt: number, events: CombatEvent[], key: '
   return left;
 }
 
+/** Heals are halved while the side is cursed. */
 function healSide(side: CombatSide, amt: number, events: CombatEvent[], key: 'p' | 'e'): number {
+  if (side.curse > 0) amt = Math.round(amt / 2);
   const before = side.hp;
   side.hp = Math.min(side.maxHp, side.hp + amt);
   const got = Math.round(side.hp - before);
@@ -85,7 +112,15 @@ function healSide(side: CombatSide, amt: number, events: CombatEvent[], key: 'p'
   return got;
 }
 
+function gainShield(side: CombatSide, amt: number, events: CombatEvent[], key: 'p' | 'e'): void {
+  if (side.curse > 0) amt = Math.round(amt / 2);
+  if (amt <= 0) return;
+  side.shield += amt;
+  events.push({ type: 'shield', side: key, amount: amt });
+}
+
 function trigger(
+  combat: CombatState,
   side: CombatSide,
   foe: CombatSide,
   ci: CombatItem,
@@ -96,18 +131,40 @@ function trigger(
   const st = ci.st;
   const def = getItemDef(ci.it);
   events.push({ type: 'trigger', side: sideKey, itemUid: ci.it.uid });
+  const triggerIdx = events.length - 1;
 
   if (st.dmg) {
-    let dmg = st.dmg;
-    let crit = false;
-    if (def.crit && Math.random() < def.crit) {
-      dmg *= 2;
-      crit = true;
+    let anyCrit = false;
+
+    for (let hit = 0; hit < st.hits; hit++) {
+      let dmg = st.dmg + ci.rampBonus;
+      if (st.goldScale && side.isPlayer) dmg += Math.floor(combat.goldAtStart / 3);
+      dmg *= weaponRampMult(side.hero, combat.t);
+      // Execute bonus applies once per trigger, on the first hit.
+      if (st.execute && hit === 0 && foe.hp / foe.maxHp < 0.3) dmg += st.execute;
+
+      let crit = false;
+      if (st.crit && Math.random() < st.crit) {
+        dmg *= 2;
+        crit = true;
+        anyCrit = true;
+      }
+      dmg = Math.round(dmg);
+
+      const dealt = dealDamage(foe, dmg, events, foeKey, crit, st.pierce);
+      if (st.life && dealt > 0) healSide(side, Math.round(dealt * st.life), events, sideKey);
+
+      if (foe.thorns > 0) {
+        side.hp -= foe.thorns;
+        events.push({ type: 'raw', side: sideKey, amount: foe.thorns, kind: 'thorns' });
+      }
     }
-    events[events.length - 1] = { type: 'trigger', side: sideKey, itemUid: ci.it.uid, crit };
-    const dealt = dealDamage(foe, dmg, events, foeKey, crit);
-    if (def.life) healSide(side, Math.round(dealt * def.life), events, sideKey);
-    if (crit) events.push({ type: 'log', message: `${def.nm} strikes true — ${dmg}!` });
+
+    if (st.ramp) ci.rampBonus += st.ramp;
+    if (anyCrit) {
+      events[triggerIdx] = { type: 'trigger', side: sideKey, itemUid: ci.it.uid, crit: true };
+      events.push({ type: 'log', message: `${def.nm} strikes true!` });
+    }
   }
 
   if (st.burn) {
@@ -118,14 +175,16 @@ function trigger(
     foe.poison += st.poison;
     events.push({ type: 'poison', side: foeKey, amount: st.poison });
   }
-  if (st.shield) {
-    side.shield += st.shield;
-    events.push({ type: 'shield', side: sideKey, amount: st.shield });
-  }
+  if (st.shield) gainShield(side, st.shield, events, sideKey);
   if (st.heal) healSide(side, st.heal, events, sideKey);
   if (st.cleanse) {
     side.burn = 0;
     side.poison = 0;
+  }
+  if (st.curse) {
+    foe.curse = Math.max(foe.curse, st.curse);
+    events.push({ type: 'curse', side: foeKey, duration: st.curse });
+    events.push({ type: 'log', message: `${def.nm} lays a curse — heals & shields falter!` });
   }
   if (st.haste) {
     for (const o of side.items) {
@@ -138,6 +197,9 @@ function trigger(
       o.t = Math.max(0, o.t - (st.slow ?? 0));
     }
     events.push({ type: 'slow', side: foeKey });
+
+    const arcane = arcaneSlowDamage(side.hero, st.slow);
+    if (arcane > 0) dealDamage(foe, arcane, events, foeKey, false);
   }
 }
 
@@ -156,9 +218,11 @@ export function tickCombat(combat: CombatState, dt: number): CombatEvent[] {
       ci.t += dt;
       if (ci.t >= ci.st.cd) {
         ci.t -= ci.st.cd;
-        trigger(side, foe, ci, events, sideKey, foeKey);
+        trigger(combat, side, foe, ci, events, sideKey, foeKey);
       }
     }
+
+    side.curse = Math.max(0, side.curse - dt);
 
     side.burnT += dt;
     if (side.burnT >= 0.5) {
@@ -176,6 +240,14 @@ export function tickCombat(combat: CombatState, dt: number): CombatEvent[] {
       if (side.poison > 0) {
         side.hp -= side.poison;
         events.push({ type: 'raw', side: sideKey, amount: side.poison, kind: 'poison' });
+      }
+    }
+
+    if (side.regen > 0) {
+      side.regenT += dt;
+      if (side.regenT >= 1) {
+        side.regenT -= 1;
+        healSide(side, side.regen, events, sideKey);
       }
     }
   }

@@ -1,9 +1,6 @@
 import type { Tier } from '@/game/types';
 
 export const STALL_CAP = 5;
-/** @deprecated use STALL_CAP */
-export const BOARD_CAP = STALL_CAP;
-export const BATTLE_CAP = STALL_CAP;
 export const WIN_TARGET = 10;
 export const STARTING_LIVES = 3;
 export const STARTING_GOLD = 13;

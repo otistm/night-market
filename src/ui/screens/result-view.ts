@@ -50,6 +50,9 @@ export function showResultScreen(
     kick = `Night ${romans(run.day)}`;
     title = 'DEFEAT';
     body = `${combat.enemyMeta.nm} picks your pockets on the way out.`;
+    if (combat.enemyMeta.hint) {
+      body += `<br><i class="fiend-hint">${combat.enemyMeta.hint}</i>`;
+    }
     reward = '<span>+<b id="rw-gold">0</b> gold</span><span>−1 lantern</span>';
   }
 
@@ -81,7 +84,7 @@ export function showResultScreen(
       run.day++;
       run.maxHp += 10;
       run.gold += income;
-      run.rerollCost = 1;
+      run.rerollCost = run.hero.freeReroll ? 0 : 1;
       callbacks.onContinue();
     }
   }, { once: true });

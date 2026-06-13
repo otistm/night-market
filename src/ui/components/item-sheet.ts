@@ -61,7 +61,7 @@ export function openItemSheet(
   if (shopMode && where === 'shop') {
     actions = `<div class="actions">
       <button class="btn ghost" data-action="close">Close</button>
-      <button class="btn primary" data-action="buy">Buy · ${itemPrice(it)}</button></div>`;
+      <button class="btn primary" data-action="buy">Buy · ${itemPrice(it, run?.hero)}</button></div>`;
   } else if (shopMode && where === 'board') {
     actions = `<div class="actions">
       <button class="btn ghost" data-action="close">Close</button>
@@ -78,6 +78,7 @@ export function openItemSheet(
       </h3>
     </div>
     <div class="sheet-body">
+      <div class="item-tags">${def.tags.map((t) => `<span class="tag-pill">${t}</span>`).join('')}</div>
       <div class="desc">${describeItem(it, mine, run ?? undefined)}</div>
       <div class="stats">
         <span class="chip">size ${def.sz} slot${def.sz > 1 ? 's' : ''}</span>

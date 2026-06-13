@@ -44,8 +44,12 @@ export function createBattleController(
     const hpPct = clamp((s.hp / s.maxHp) * 100, 0, 100);
     const shPct = clamp((s.shield / s.maxHp) * 100, 0, 100);
 
-    animateHpBar($(key + '-hp'), hpPct);
+    const hpEl = $(key + '-hp');
+    animateHpBar(hpEl, hpPct);
     animateShieldBar($(key + '-sh'), shPct);
+
+    hpEl.classList.toggle('burning', s.burn > 0);
+    hpEl.classList.toggle('poisoned', s.poison > 0);
 
     $(key + '-hpt').textContent =
       `${Math.max(0, Math.ceil(s.hp))}${s.shield > 0 ? ` +${Math.round(s.shield)}` : ''}`;
@@ -54,6 +58,7 @@ export function createBattleController(
     setStatus(key, 'burn', s.burn);
     setStatus(key, 'poison', s.poison);
     setStatus(key, 'shield', Math.round(s.shield));
+    setStatus(key, 'curse', s.curse);
   }
 
   function setStatus(key: SideKey, st: string, v: number): void {
@@ -121,6 +126,13 @@ export function createBattleController(
             const pop = createDamagePop(appEl, face, String(ev.amount), 'var(--frost)', 14);
             animateDamagePop(pop, () => {});
           }
+          break;
+        }
+        case 'curse': {
+          const face = $(ev.side + '-face');
+          const pop = createDamagePop(appEl, face, `curse ${ev.duration}s`, '#c58aff', 14);
+          animateDamagePop(pop, () => {});
+          fx.burst(face, '#c58aff', 12);
           break;
         }
         case 'burn':
@@ -251,7 +263,7 @@ export function createBattleController(
       drawSide('e');
 
       animateBattleEntrance(() => {
-        log(`${enemy.nm} unrolls their wares across from yours…`);
+        log(enemy.threat ?? `${enemy.nm} unrolls their wares across from yours…`);
         cancelAnimationFrame(rafId);
         setTimeout(
           () => {

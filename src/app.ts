@@ -16,6 +16,8 @@ import { closeItemSheet, bindSheetOverlay, openItemSheet } from '@/ui/components
 import { bindHeroOverlay, closeHeroSheet, openHeroSheet } from '@/ui/components/hero-sheet';
 import { createDragDrop } from '@/ui/drag-drop';
 import { bindCombatBoardTap } from '@/ui/combat-board-tap';
+import { bindTitleSwipe } from '@/ui/title-swipe';
+import { createHeroCarousel, type HeroCarousel } from '@/ui/hero-carousel';
 import { bindAllScrollLanes } from '@/ui/scroll-lane';
 import { hideDock, showDockShop } from '@/ui/player-dock';
 import { createBattleController } from '@/ui/screens/battle-controller';
@@ -25,6 +27,7 @@ import { $, vibrate } from '@/ui/dom';
 
 export class NightMarketApp {
   private run: RunState | null = null;
+  private heroCarousel: HeroCarousel | null = null;
   private readonly appEl = $('app');
   private readonly bg = createBackground3D(this.appEl, $('bg3d') as HTMLCanvasElement);
   private readonly fx = createFxSystem(this.appEl, $('fx-canvas') as HTMLCanvasElement);
@@ -33,6 +36,12 @@ export class NightMarketApp {
     this.fx,
     this.bg,
     (combat, won) => this.onBattleEnd(combat, won),
+  );
+  private readonly titleSwipe = bindTitleSwipe(
+    $('title-enter'),
+    $('title-enter-thumb'),
+    $('title-enter-track'),
+    () => this.showHeroSelect(),
   );
 
   constructor() {
@@ -57,14 +66,19 @@ export class NightMarketApp {
     });
 
     bindCombatBoardTap((uid) => this.battle.openCombatItemSheet(uid));
+    this.bg.setMood('shop');
+    this.bg.setBackdropMode('title');
   }
 
   private bindEvents(): void {
-    $('btn-start').addEventListener('click', () => this.showHeroSelect());
     $('btn-reroll').addEventListener('click', () => this.handleReroll());
     $('btn-fight').addEventListener('click', () => this.battle.start());
     $('btn-speed').addEventListener('click', () => this.cycleSpeed());
     $('dock-avatar').addEventListener('click', () => this.openHeroInfo());
+    $('btn-pledge').addEventListener('click', () => {
+      const active = this.heroCarousel?.getActive();
+      if (active) this.selectHero(active.hero, active.card);
+    });
   }
 
   private openHeroInfo(): void {
@@ -74,23 +88,24 @@ export class NightMarketApp {
 
   private showHeroSelect(): void {
     hideDock();
-    const container = $('hero-cards');
-    container.innerHTML = '';
 
-    for (const hero of HEROES) {
-      const el = document.createElement('div');
-      el.className = 'hero-card';
-      el.innerHTML = `
-        <span class="face">${hero.face}</span>
-        <div>
-          <div class="tag">${hero.tag}</div>
-          <h3>${hero.nm}</h3>
-          <p>${hero.pass}</p>
-        </div>`;
-      el.addEventListener('click', () => this.selectHero(hero, el));
-      container.appendChild(el);
-    }
+    const nameEl = $('hero-name');
+    const classEl = $('hero-class');
+    const passEl = $('hero-pass');
 
+    this.heroCarousel?.destroy();
+    this.heroCarousel = createHeroCarousel({
+      track: $('hero-coverflow'),
+      heroes: HEROES,
+      onChange: (hero) => {
+        nameEl.textContent = hero.nm;
+        classEl.textContent = hero.tag;
+        passEl.textContent = hero.pass;
+      },
+      onConfirm: (hero, card) => this.selectHero(hero, card),
+    });
+
+    this.bg.setBackdropMode('default');
     showScreen('hero-screen');
   }
 
@@ -98,6 +113,8 @@ export class NightMarketApp {
     this.fx.burst(el, '#ffae34', 18);
     punch(el, 1.05);
     setTimeout(() => {
+      this.heroCarousel?.destroy();
+      this.heroCarousel = null;
       this.run = createRun(hero);
       this.refreshShop();
       showDockShop();
@@ -186,7 +203,10 @@ export class NightMarketApp {
         this.battle.stop();
         hideDock();
         this.bg.setMood('shop');
+        this.bg.setBackdropMode('title');
+        this.titleSwipe.reset();
         showScreen('title-screen');
+        titleIntro();
       },
     });
   }

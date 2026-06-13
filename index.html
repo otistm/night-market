@@ -16,6 +16,42 @@
 
   <title>Night Market — Pocket Autobattler</title>
 
+  <style>
+    html,
+    body {
+      margin: 0;
+      height: 100%;
+      background: #0a0613;
+      color: #f5ecd9;
+      overflow: hidden;
+    }
+
+    html:not(.ready) #app {
+      visibility: hidden;
+    }
+
+    .screen {
+      display: none;
+    }
+
+    .screen.on {
+      display: flex;
+    }
+  </style>
+
+  <link rel="stylesheet" href="/src/styles/main.css">
+
+  <link rel="preload" as="image" href="/Images/Start_Screen_Background.png">
+
+  <link rel="prefetch" as="image" href="/Images/The_Witch_Hagra_of_the_Bramblewood.png">
+  <link rel="prefetch" as="image" href="/Images/playto_The_Vampire_Count_Mordrel.png">
+  <link rel="prefetch" as="image" href="/Images/playto_The_Werewolf_Fenra_Moonscar.png">
+  <link rel="prefetch" as="image" href="/Images/The_Sorcerer_Azael_Tide-Speaker.png">
+  <link rel="prefetch" as="image" href="/Images/The_Queen_Seraphine_Lantern_Queen.png">
+  <link rel="prefetch" as="image" href="/Images/The_Fire_Golem_Cinderhulk.png">
+  <link rel="prefetch" as="image" href="/Images/The_Goblin_Snitch_Coppertooth.png">
+  <link rel="prefetch" as="image" href="/Images/The_Griffin_Sky-Marshal_Aello.png">
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
 
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -30,6 +66,8 @@
 
     <canvas id="bg3d"></canvas>
 
+    <div class="title-screen-bg" aria-hidden="true"></div>
+
     <div id="bg-grad"></div>
 
     <canvas id="fx-canvas"></canvas>
@@ -38,13 +76,21 @@
 
     <div class="screen on" id="title-screen">
 
-      <div class="kicker">A pocket autobattler</div>
+      <div class="title-screen-scrim" aria-hidden="true"></div>
 
       <h1>NIGHT<br>MARKET</h1>
 
       <div class="sub">Stock your stall with enchanted wares. When the lanterns dim, they fight for you.</div>
 
-      <button class="btn primary" id="btn-start">Open Your Stall</button>
+      <div class="title-enter" id="title-enter" role="slider" aria-label="Swipe right to enter the market" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <div class="title-enter-track" id="title-enter-track">
+          <div class="title-enter-fill" aria-hidden="true"></div>
+          <span class="title-enter-label">Enter the market</span>
+          <div class="title-enter-thumb" id="title-enter-thumb">
+            <span class="title-enter-arrow" aria-hidden="true">→</span>
+          </div>
+        </div>
+      </div>
 
     </div>
 
@@ -52,11 +98,19 @@
 
     <div class="screen" id="hero-screen">
 
-      <div class="kicker">Night I</div>
+      <div class="hero-head">
+        <span class="kicker">Pledge your allegiance</span>
+        <h2 class="hero-name" id="hero-name"></h2>
+      </div>
 
-      <h2>Choose your<br>peddler</h2>
+      <div class="hero-coverflow" id="hero-coverflow" role="listbox" aria-label="Choose your peddler"></div>
 
-      <div class="hero-cards" id="hero-cards"></div>
+      <div class="hero-meta">
+        <div class="hero-class" id="hero-class"></div>
+        <p class="hero-pass" id="hero-pass"></p>
+      </div>
+
+      <button class="btn primary hero-pledge" id="btn-pledge" type="button">Pledge allegiance</button>
 
     </div>
 
@@ -146,6 +200,8 @@
 
             <span class="st shield" id="e-shield">🛡<b></b></span>
 
+            <span class="st curse" id="e-curse">🕯<b></b></span>
+
           </div>
 
         </div>
@@ -216,6 +272,8 @@
 
             <span class="st shield" id="p-shield">🛡<b></b></span>
 
+            <span class="st curse" id="p-curse">🕯<b></b></span>
+
           </div>
 
         </div>
@@ -241,6 +299,8 @@
     </div>
 
   </div>
+
+  <script>document.documentElement.classList.add('ready');</script>
 
   <script type="module" src="/src/main.ts"></script>
 

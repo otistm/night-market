@@ -90,6 +90,17 @@ body {
   z-index: 60;
 }
 
+#app:has(#title-screen.on) #bg3d {
+  z-index: 4;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  opacity: 0.78;
+}
+
+#app:has(#title-screen.on) #bg-grad {
+  visibility: hidden;
+}
+
 .screen {
   position: absolute;
   inset: 0;
@@ -263,25 +274,50 @@ body {
 }
 
 /* title */
+.title-screen-bg {
+  display: none;
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  background: url('/Images/Start_Screen_Background.png') center top / cover no-repeat;
+  pointer-events: none;
+}
+
+#app:has(#title-screen.on) .title-screen-bg {
+  display: block;
+}
+
 #title-screen {
   justify-content: flex-end;
   padding: 0 max(22px, var(--pad-x)) calc(34px + var(--safe-b));
   gap: 14px;
+  overflow: hidden;
+  background: transparent;
 }
 
-#title-screen .kicker {
-  font-family: 'Unbounded', sans-serif;
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: 0.34em;
-  color: var(--violet);
-  text-transform: uppercase;
+.title-screen-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgba(10, 6, 19, 0.08) 0%,
+    transparent 38%,
+    rgba(10, 6, 19, 0.5) 72%,
+    rgba(10, 6, 19, 0.92) 100%
+  );
+}
+
+#title-screen > :not(.title-screen-scrim) {
+  position: relative;
+  z-index: 1;
 }
 
 #title-screen h1 {
   font-family: 'Unbounded', sans-serif;
   font-weight: 900;
-  font-size: clamp(56px, 17.5vw, 96px);
+  font-size: clamp(44px, 13.5vw, 72px);
   line-height: 0.94;
   letter-spacing: -0.01em;
   background: linear-gradient(165deg, #fff3d6 5%, var(--amber) 45%, var(--amber2) 80%);
@@ -300,106 +336,229 @@ body {
   margin-bottom: 8px;
 }
 
-#title-screen .btn {
+.title-enter {
   width: 100%;
-  height: 66px;
-  font-size: 15px;
+  touch-action: none;
+  user-select: none;
+  --swipe-progress: 0;
 }
 
-/* hero select */
+.title-enter-track {
+  position: relative;
+  height: 64px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+
+.title-enter-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: calc(var(--swipe-progress) * 100%);
+  background: linear-gradient(90deg, rgba(255, 160, 50, 0.08), rgba(255, 160, 50, 0.28));
+  pointer-events: none;
+}
+
+.title-enter-label {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding-left: 58px;
+  font-family: 'Unbounded', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--dim);
+  pointer-events: none;
+  opacity: calc(1 - var(--swipe-progress) * 1.6);
+}
+
+.title-enter-thumb {
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  width: 52px;
+  height: 52px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  cursor: grab;
+  touch-action: none;
+  background: linear-gradient(135deg, #ffd98a, #f0a93c);
+  box-shadow:
+    0 8px 22px rgba(0, 0, 0, 0.45),
+    0 0 18px rgba(255, 160, 50, calc(0.15 + var(--swipe-progress) * 0.45));
+  will-change: transform;
+  z-index: 1;
+}
+
+.title-enter-thumb:active {
+  cursor: grabbing;
+}
+
+.title-enter-arrow {
+  font-family: 'Unbounded', sans-serif;
+  font-size: 22px;
+  font-weight: 900;
+  color: #2c1503;
+  line-height: 1;
+  transform: translateX(calc(var(--swipe-progress) * 2px));
+}
+
+/* hero select — coverflow */
 #hero-screen {
-  padding: calc(var(--safe-t) + 22px) max(18px, var(--pad-x)) calc(20px + var(--safe-b));
-  gap: 14px;
+  padding: calc(var(--safe-t) + 18px) 0 calc(var(--dock-pad) + var(--safe-b));
+  gap: 24px;
   min-height: 0;
   overflow: hidden;
+  align-items: center;
+  justify-content: center;
+}
+
+.hero-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  padding: 0 18px;
 }
 
 #hero-screen .kicker {
   font-family: 'Unbounded', sans-serif;
-  font-size: 12px;
+  font-size: 11px;
   letter-spacing: 0.3em;
   color: var(--violet);
   text-transform: uppercase;
   text-align: center;
 }
 
-#hero-screen h2 {
+.hero-name {
   font-family: 'Unbounded', sans-serif;
   font-weight: 900;
-  font-size: clamp(26px, 8vw, 34px);
-  text-align: center;
+  font-size: clamp(22px, 7vw, 32px);
   line-height: 1.05;
-}
-
-.hero-cards {
+  text-align: center;
+  color: var(--amber);
+  text-shadow: 0 0 26px rgba(255, 160, 50, 0.45);
   display: flex;
-  flex-direction: column;
-  gap: 14px;
-  flex: 1;
-  justify-content: safe center;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
-  touch-action: pan-y;
-  padding: 2px 0 8px;
-  scroll-padding: 8px;
+  align-items: flex-end;
+  justify-content: center;
+  height: 2.1em;
 }
 
-.hero-card {
-  display: flex;
-  gap: 16px;
-  align-items: center;
-  border-radius: var(--r);
-  padding: 18px 16px;
-  cursor: pointer;
-  background: linear-gradient(140deg, rgba(139, 92, 246, 0.16), rgba(255, 255, 255, 0.04) 55%);
-  border: 1px solid rgba(255, 255, 255, 0.13);
-  min-height: 108px;
-  transition: transform 0.12s;
-}
-
-.hero-card:active {
-  transform: scale(0.97);
-}
-
-.hero-card .face {
-  font-size: 54px;
-  width: 84px;
-  height: 84px;
+.hero-coverflow {
+  --cf-w: clamp(250px, 80vw, 400px);
+  --cf-h: clamp(380px, 116vw, 560px);
+  position: relative;
+  width: 100%;
   flex: none;
+  height: var(--cf-h);
+  perspective: 1100px;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  overflow: visible;
+}
+
+.hero-cf-card {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--cf-w);
+  height: var(--cf-h);
+  margin-left: calc(var(--cf-w) / -2);
+  margin-top: calc(var(--cf-h) / -2);
+  border-radius: 0;
+  overflow: hidden;
+  background: #120c1f;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.6);
+  cursor: pointer;
+  will-change: transform, opacity;
+  transform-style: preserve-3d;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.hero-cf-card img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  pointer-events: none;
+}
+
+.hero-cf-face {
+  position: absolute;
+  inset: 0;
   display: grid;
   place-items: center;
-  border-radius: 22px;
-  background: radial-gradient(circle at 50% 32%, rgba(139, 92, 246, 0.4), rgba(20, 12, 34, 0.7));
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow: inset 0 0 26px rgba(139, 92, 246, 0.35);
+  font-size: clamp(72px, 22vw, 120px);
+  background: radial-gradient(circle at 50% 35%, rgba(139, 92, 246, 0.4), rgba(20, 12, 34, 0.85));
 }
 
-.hero-card .tag {
+.hero-cf-card .cf-shade {
+  position: absolute;
+  inset: 0;
+  background: rgba(8, 5, 16, 0.55);
+  transition: opacity 0.25s ease;
+  pointer-events: none;
+}
+
+.hero-cf-card.active {
+  box-shadow:
+    0 0 36px rgba(255, 160, 50, 0.5),
+    0 22px 50px rgba(0, 0, 0, 0.72);
+}
+
+.hero-cf-card.active .cf-shade {
+  opacity: 0;
+}
+
+.hero-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  padding: 0 18px;
+}
+
+.hero-class {
   font-family: 'Unbounded', sans-serif;
   font-size: 12px;
   font-weight: 500;
-  letter-spacing: 0.22em;
-  color: var(--violet);
+  letter-spacing: 0.26em;
   text-transform: uppercase;
+  color: var(--dim);
+  text-align: center;
 }
 
-.hero-card h3 {
-  font-family: 'Unbounded', sans-serif;
-  font-weight: 700;
-  font-size: 17px;
-  margin: 3px 0 5px;
-}
-
-.hero-card p {
-  font-size: 14px;
+.hero-pass {
+  font-size: 13px;
   color: var(--dim);
   line-height: 1.45;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  text-align: center;
+  max-width: 320px;
+  min-height: 2.9em;
+}
+
+.hero-pledge {
+  position: absolute;
+  left: 50%;
+  bottom: calc(8px + var(--safe-b));
+  transform: translateX(-50%);
+  width: min(320px, calc(100% - 36px));
+  height: 52px;
+  min-height: 52px;
+  z-index: 25;
 }
 
 /* item cards */
@@ -1198,6 +1357,94 @@ body {
   background: linear-gradient(180deg, #ff8fa0, #d1364c);
 }
 
+/* burn — the bar smolders and licks with flame */
+.hpbar .hp.burning {
+  background: linear-gradient(180deg, #ffd24a, #ff7a1a 48%, #d8301a) !important;
+  background-size: 100% 200%;
+  box-shadow:
+    0 0 12px rgba(255, 120, 30, 0.85),
+    inset 0 0 10px rgba(255, 224, 130, 0.55);
+  animation: hp-fire-glow 0.7s ease-in-out infinite alternate;
+}
+
+.hpbar .hp.burning::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    radial-gradient(58% 90% at 18% 130%, rgba(255, 226, 140, 0.95), transparent 60%),
+    radial-gradient(48% 95% at 48% 140%, rgba(255, 168, 60, 0.9), transparent 62%),
+    radial-gradient(54% 100% at 80% 130%, rgba(255, 110, 36, 0.95), transparent 60%);
+  mix-blend-mode: screen;
+  pointer-events: none;
+  animation: hp-fire-flicker 0.5s ease-in-out infinite alternate;
+}
+
+@keyframes hp-fire-glow {
+  0% {
+    background-position: 0% 0%;
+    filter: brightness(1);
+  }
+  100% {
+    background-position: 0% 100%;
+    filter: brightness(1.18);
+  }
+}
+
+@keyframes hp-fire-flicker {
+  0% {
+    transform: translateY(8%) scaleY(1);
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-10%) scaleY(1.12);
+    opacity: 0.55;
+  }
+}
+
+/* poison — toxic tint with bubbles rising up the bar */
+.hpbar .hp.poisoned:not(.burning) {
+  background: linear-gradient(180deg, #b6f078, #4ba62f 55%, #2d7a4e) !important;
+  box-shadow:
+    0 0 12px rgba(126, 224, 106, 0.65),
+    inset 0 0 10px rgba(190, 255, 150, 0.35);
+}
+
+.hpbar .hp.poisoned::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-image:
+    radial-gradient(circle, rgba(224, 255, 184, 0.95) 30%, transparent 32%),
+    radial-gradient(circle, rgba(196, 246, 140, 0.85) 26%, transparent 28%),
+    radial-gradient(circle, rgba(176, 240, 120, 0.9) 24%, transparent 26%),
+    radial-gradient(circle, rgba(214, 255, 178, 0.8) 20%, transparent 22%);
+  background-size: 13px 13px, 9px 9px, 17px 17px, 7px 7px;
+  background-repeat: repeat-x;
+  mix-blend-mode: screen;
+  pointer-events: none;
+  animation: hp-poison-bubble 1.7s linear infinite;
+}
+
+@keyframes hp-poison-bubble {
+  0% {
+    background-position: 5px 125%, 21px 125%, 38px 125%, 55px 125%;
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 0.9;
+  }
+  100% {
+    background-position: 9px -45%, 26px -45%, 33px -45%, 60px -45%;
+    opacity: 0.15;
+  }
+}
+
 .hpbar .sh {
   position: absolute;
   inset: 0;
@@ -1254,6 +1501,12 @@ body {
   background: rgba(108, 199, 255, 0.13);
   color: var(--frost);
   border: 1px solid rgba(108, 199, 255, 0.45);
+}
+
+.st.curse {
+  background: rgba(197, 138, 255, 0.13);
+  color: #c58aff;
+  border: 1px solid rgba(197, 138, 255, 0.45);
 }
 
 #arena-gap {
@@ -1404,6 +1657,26 @@ body {
   flex: none;
 }
 
+.sheet .item-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.sheet .tag-pill {
+  font-family: 'Unbounded', sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--violet);
+  background: rgba(139, 92, 246, 0.12);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+
 .sheet .desc {
   margin: 14px 0 4px;
   font-size: 15.5px;
@@ -1492,6 +1765,13 @@ body {
   max-width: 320px;
 }
 
+#result-screen .fiend-hint {
+  display: block;
+  margin-top: 8px;
+  font-size: 13.5px;
+  color: var(--violet);
+}
+
 #result-screen .reward {
   font-family: 'Unbounded', sans-serif;
   font-weight: 700;
@@ -1532,8 +1812,9 @@ body {
     height: clamp(158px, 40vw, 188px);
   }
 
-  .hero-card {
-    min-height: 92px;
+  .hero-coverflow {
+    --cf-w: clamp(234px, 74vw, 360px);
+    --cf-h: clamp(344px, 106vw, 500px);
   }
 
   .hpbar {
@@ -1542,14 +1823,17 @@ body {
 }
 
 @media (max-height: 620px) {
-  #hero-screen h2 {
-    font-size: clamp(22px, 7vw, 28px);
+  .hero-name {
+    font-size: clamp(20px, 6.4vw, 26px);
   }
 
-  .hero-card .face {
-    width: 72px;
-    height: 72px;
-    font-size: 44px;
+  .hero-coverflow {
+    --cf-w: clamp(210px, 68vw, 308px);
+    --cf-h: clamp(306px, 94vw, 436px);
+  }
+
+  .hero-pass {
+    min-height: 0;
   }
 
   .fighter .portrait {

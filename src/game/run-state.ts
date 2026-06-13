@@ -1,8 +1,11 @@
-import { ITEMS } from '@/data/items';
+import { ITEM_BY_ID, MARKET_ITEMS } from '@/data/items';
 import { STALL_CAP, STARTING_GOLD, STARTING_HP, STARTING_LIVES } from '@/config/constants';
 import type { HeroDef, ItemInstance, RunState, Tier } from '@/game/types';
 import { pick } from '@/utils/math';
 import { isValidTier } from '@/config/constants';
+
+/** Chance each shop slot is stocked from the chosen peddler's own wares. */
+const HERO_POOL_WEIGHT = 0.65;
 
 let uidCounter = 0;
 
@@ -23,9 +26,13 @@ function rollTier(day: number): Tier {
 }
 
 export function rollShop(run: RunState): void {
-  run.shop = Array.from({ length: 4 }, () =>
-    createItemInstance(pick(ITEMS).id, rollTier(run.day)),
-  );
+  const heroPool = MARKET_ITEMS.filter((d) => d.heroId === run.hero.id);
+  const otherPool = MARKET_ITEMS.filter((d) => d.heroId !== run.hero.id);
+
+  run.shop = Array.from({ length: 4 }, () => {
+    const pool = heroPool.length > 0 && Math.random() < HERO_POOL_WEIGHT ? heroPool : otherPool;
+    return createItemInstance(pick(pool).id, rollTier(run.day));
+  });
 }
 
 export function createRun(hero: HeroDef): RunState {
@@ -39,7 +46,7 @@ export function createRun(hero: HeroDef): RunState {
     maxHp: STARTING_HP,
     board: [],
     shop: [],
-    rerollCost: 1,
+    rerollCost: hero.freeReroll ? 0 : 1,
     speed: 1,
   };
   rollShop(run);
@@ -47,15 +54,12 @@ export function createRun(hero: HeroDef): RunState {
 }
 
 export function canPlaceItem(board: ItemInstance[], item: ItemInstance): boolean {
-  const def = ITEMS.find((i) => i.id === item.defId)!;
+  const def = ITEM_BY_ID[item.defId];
   return usedCap(board) + def.sz <= STALL_CAP;
 }
 
 function usedCap(board: ItemInstance[]): number {
-  return board.reduce((acc, it) => {
-    const def = ITEMS.find((i) => i.id === it.defId)!;
-    return acc + def.sz;
-  }, 0);
+  return board.reduce((acc, it) => acc + ITEM_BY_ID[it.defId].sz, 0);
 }
 
 export function upgradeTier(tier: Tier): Tier | null {
