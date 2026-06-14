@@ -3,29 +3,65 @@ import type { HeroDef } from '@/game/types';
 import { reduceMotion } from '@/fx/animations';
 import { vibrate } from '@/ui/dom';
 
+export type HeroCarouselSlide =
+  | { kind: 'intro' }
+  | { kind: 'hero'; hero: HeroDef; heroIndex: number };
+
 interface HeroCarouselOptions {
   track: HTMLElement;
   heroes: readonly HeroDef[];
-  onChange(hero: HeroDef, index: number): void;
-  onConfirm(hero: HeroDef, card: HTMLElement): void;
+  onChange(slide: HeroCarouselSlide): void;
+  onConfirmHero(hero: HeroDef, card: HTMLElement): void;
 }
 
 export interface HeroCarousel {
   destroy(): void;
-  getActive(): { hero: HeroDef; card: HTMLElement };
+  getActive(): { slide: HeroCarouselSlide; card: HTMLElement };
+  confirmActive(): void;
 }
 
 const TAP_SLOP = 8;
+const INTRO_INDEX = 0;
+
+function slideAt(index: number, heroes: readonly HeroDef[]): HeroCarouselSlide {
+  if (index === INTRO_INDEX) return { kind: 'intro' };
+  const heroIndex = index - 1;
+  return { kind: 'hero', hero: heroes[heroIndex], heroIndex };
+}
+
+function buildIntroCard(): HTMLElement {
+  const card = document.createElement('div');
+  card.className = 'hero-cf-card hero-cf-intro';
+  card.dataset.index = String(INTRO_INDEX);
+  card.setAttribute('role', 'option');
+  card.setAttribute('aria-label', 'Night Market — Code of Conduct');
+  card.innerHTML = `
+    <div class="hero-cf-intro-body">
+      <h3 class="hero-cf-intro-title">Night Market</h3>
+      <p class="hero-cf-intro-sub">Code of Conduct</p>
+      <ul class="hero-cf-intro-list">
+        <li>Pledge Your Loyalty</li>
+        <li>Head to the shops and buy things to fight with</li>
+        <li>Defeat &ldquo;The 10 Lords&rdquo;</li>
+        <li>Rise Through the Ranks</li>
+      </ul>
+      <p class="hero-cf-intro-tag">Who knows&hellip;you might one day become the 11th Lord.</p>
+    </div>`;
+  return card;
+}
 
 export function createHeroCarousel(opts: HeroCarouselOptions): HeroCarousel {
-  const { track, heroes, onChange, onConfirm } = opts;
+  const { track, heroes, onChange, onConfirmHero } = opts;
   const cards: HTMLElement[] = [];
 
   track.innerHTML = '';
+  cards.push(buildIntroCard());
+  track.appendChild(cards[0]);
+
   heroes.forEach((hero, i) => {
     const card = document.createElement('div');
     card.className = 'hero-cf-card';
-    card.dataset.index = String(i);
+    card.dataset.index = String(i + 1);
     card.setAttribute('role', 'option');
     card.setAttribute('aria-label', `${hero.tag} — ${hero.nm}`);
     const art = hero.img
@@ -36,7 +72,8 @@ export function createHeroCarousel(opts: HeroCarouselOptions): HeroCarousel {
     cards.push(card);
   });
 
-  let current = 0;
+  const lastIndex = cards.length - 1;
+  let current = INTRO_INDEX;
   let viewFloat = 0;
   let spacing = 1;
   let tween: gsap.core.Tween | null = null;
@@ -50,6 +87,22 @@ export function createHeroCarousel(opts: HeroCarouselOptions): HeroCarousel {
   function measure(): void {
     const w = cards[0]?.offsetWidth ?? track.clientWidth * 0.5;
     spacing = Math.max(64, w * 0.6);
+  }
+
+  function cardIndexAt(clientX: number, clientY: number): number {
+    let bestIdx = current;
+    let bestDist = Infinity;
+    cards.forEach((card, i) => {
+      if (parseFloat(card.style.opacity || '1') < 0.25) return;
+      const r = card.getBoundingClientRect();
+      if (clientX < r.left || clientX > r.right || clientY < r.top || clientY > r.bottom) return;
+      const dist = Math.abs(clientX - (r.left + r.width / 2));
+      if (dist < bestDist) {
+        bestDist = dist;
+        bestIdx = i;
+      }
+    });
+    return bestIdx;
   }
 
   function render(float: number): void {
@@ -67,13 +120,16 @@ export function createHeroCarousel(opts: HeroCarouselOptions): HeroCarousel {
       card.style.transform = `translate3d(${translate}px, 0, ${depth}px) rotateY(${rot}deg) scale(${scale})`;
       card.style.opacity = String(opacity);
       card.style.zIndex = String(100 - Math.round(abs * 10));
-      card.style.pointerEvents = abs > 2.7 ? 'none' : 'auto';
       card.classList.toggle('active', i === activeIdx);
     });
   }
 
   function clampIndex(i: number): number {
-    return Math.max(0, Math.min(heroes.length - 1, i));
+    return Math.max(0, Math.min(lastIndex, i));
+  }
+
+  function notify(index: number): void {
+    onChange(slideAt(index, heroes));
   }
 
   function settleTo(index: number, animate: boolean): void {
@@ -93,10 +149,19 @@ export function createHeroCarousel(opts: HeroCarouselOptions): HeroCarousel {
       render(target);
     }
     if (changed) vibrate(8);
-    onChange(heroes[target], target);
+    notify(target);
+  }
+
+  function confirmActive(): void {
+    if (current === INTRO_INDEX) settleTo(1, true);
+    else {
+      const slide = slideAt(current, heroes);
+      if (slide.kind === 'hero') onConfirmHero(slide.hero, cards[current]);
+    }
   }
 
   function onPointerDown(e: PointerEvent): void {
+    if (e.button !== 0) return;
     measure();
     dragging = true;
     moved = false;
@@ -105,6 +170,7 @@ export function createHeroCarousel(opts: HeroCarouselOptions): HeroCarousel {
     startFloat = viewFloat;
     tween?.kill();
     track.setPointerCapture(e.pointerId);
+    if (e.pointerType === 'touch') e.preventDefault();
   }
 
   function onPointerMove(e: PointerEvent): void {
@@ -112,11 +178,8 @@ export function createHeroCarousel(opts: HeroCarouselOptions): HeroCarousel {
     const dx = e.clientX - startX;
     if (Math.abs(dx) > TAP_SLOP) moved = true;
     let v = startFloat - dx / spacing;
-    // Rubber-band beyond the ends.
-    const min = 0;
-    const max = heroes.length - 1;
-    if (v < min) v = min - (min - v) * 0.35;
-    else if (v > max) v = max + (v - max) * 0.35;
+    if (v < 0) v = 0 - (0 - v) * 0.35;
+    else if (v > lastIndex) v = lastIndex + (v - lastIndex) * 0.35;
     render(v);
   }
 
@@ -126,16 +189,13 @@ export function createHeroCarousel(opts: HeroCarouselOptions): HeroCarousel {
     if (track.hasPointerCapture(pointerId)) track.releasePointerCapture(pointerId);
 
     if (!moved && !cancelled) {
-      const card = (e.target as HTMLElement).closest<HTMLElement>('.hero-cf-card');
-      if (card) {
-        const idx = Number(card.dataset.index);
-        if (idx === current) {
-          onConfirm(heroes[current], cards[current]);
-          return;
-        }
-        settleTo(idx, true);
+      const idx = cardIndexAt(e.clientX, e.clientY);
+      if (idx === current) {
+        confirmActive();
         return;
       }
+      settleTo(idx, true);
+      return;
     }
     settleTo(Math.round(viewFloat), true);
   }
@@ -158,7 +218,7 @@ export function createHeroCarousel(opts: HeroCarouselOptions): HeroCarousel {
       settleTo(current - 1, true);
     } else if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
-      onConfirm(heroes[current], cards[current]);
+      confirmActive();
     }
   }
 
@@ -167,7 +227,7 @@ export function createHeroCarousel(opts: HeroCarouselOptions): HeroCarousel {
     render(current);
   }
 
-  track.addEventListener('pointerdown', onPointerDown);
+  track.addEventListener('pointerdown', onPointerDown, { passive: false });
   track.addEventListener('pointermove', onPointerMove);
   track.addEventListener('pointerup', onPointerUp);
   track.addEventListener('pointercancel', onPointerCancel);
@@ -176,9 +236,9 @@ export function createHeroCarousel(opts: HeroCarouselOptions): HeroCarousel {
 
   requestAnimationFrame(() => {
     measure();
-    render(0);
+    render(INTRO_INDEX);
   });
-  onChange(heroes[0], 0);
+  notify(INTRO_INDEX);
 
   return {
     destroy() {
@@ -192,7 +252,8 @@ export function createHeroCarousel(opts: HeroCarouselOptions): HeroCarousel {
       track.innerHTML = '';
     },
     getActive() {
-      return { hero: heroes[current], card: cards[current] };
+      return { slide: slideAt(current, heroes), card: cards[current] };
     },
+    confirmActive,
   };
 }

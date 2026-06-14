@@ -1,23 +1,26 @@
 import type { CombatState, RunState } from '@/game/types';
 import { createCombat, findCombatItem, tickCombat, type CombatEvent } from '@/game/combat';
-import { buildEnemy } from '@/game/enemy';
-import { createItemElement, toggleScrollable } from '@/ui/components/cards';
+import { buildEnemy, getFiendForRun } from '@/game/enemy';
+import { createItemElement, fillStallSlots, toggleScrollable } from '@/ui/components/cards';
+import { getItemDef } from '@/game/economy';
 import {
   animateBattleEntrance,
   animateHpBar,
-  animateLogLine,
   animateShieldBar,
   punch,
   reduceMotion,
+  showCombatTicker,
   showScreen,
 } from '@/fx/animations';
 import { createDamagePop, type FxSystem } from '@/fx/particles';
 import { animateDamagePop, shakeApp } from '@/fx/animations';
+import { sfx } from '@/fx/sfx';
 import { closeItemSheet, openItemSheet } from '@/ui/components/item-sheet';
 import { showDockBattle } from '@/ui/player-dock';
+import { hideBattleHeaderActions } from '@/ui/screens/result-view';
+import { showBossIntro } from '@/ui/boss-intro';
 import { $, vibrate } from '@/ui/dom';
 import { clamp } from '@/utils/math';
-import { romans } from '@/utils/romans';
 type SideKey = 'p' | 'e';
 
 export interface BattleController {
@@ -59,6 +62,9 @@ export function createBattleController(
     setStatus(key, 'poison', s.poison);
     setStatus(key, 'shield', Math.round(s.shield));
     setStatus(key, 'curse', s.curse);
+    setStatus(key, 'thorns', s.thorns);
+
+    $(key + '-face').classList.toggle('cursed', s.curse > 0);
   }
 
   function setStatus(key: SideKey, st: string, v: number): void {
@@ -67,13 +73,10 @@ export function createBattleController(
     el.querySelector('b')!.textContent = String(Math.ceil(v));
   }
 
-  function log(msg: string): void {
-    const l = $('combat-log');
-    const d = document.createElement('div');
-    d.textContent = msg;
-    l.appendChild(d);
-    while (l.children.length > 2) l.removeChild(l.firstChild!);
-    animateLogLine(d);
+  function flashWare(el: HTMLElement, cls: string): void {
+    el.classList.remove(cls);
+    void el.offsetWidth;
+    el.classList.add(cls);
   }
 
   function handleEvents(events: CombatEvent[]): void {
@@ -93,7 +96,8 @@ export function createBattleController(
           );
           punch(face, 0.82);
           fx.burst(face, ev.crit ? '#ffd75e' : '#ff4d6a', ev.crit ? 26 : 10);
-          animateDamagePop(pop, () => {});
+          sfx.hit(ev.crit);
+          animateDamagePop(pop, () => {}, run.speed);
           if (ev.amount >= 20 || ev.crit) {
             shakeApp(ev.crit ? 10 : 7);
             bg.pulse();
@@ -103,35 +107,38 @@ export function createBattleController(
         }
         case 'raw': {
           const face = $(ev.side + '-face');
-          const col =
-            ev.kind === 'burn' ? 'var(--ember)' : ev.kind === 'poison' ? 'var(--venom)' : '#cccccc';
-          const pop = createDamagePop(appEl, face, `-${ev.amount}`, col, 13);
-          animateDamagePop(pop, () => {});
+          if (ev.kind === 'thorns') {
+            const pop = createDamagePop(appEl, face, `💢-${ev.amount}`, '#ff8d7a', 14);
+            animateDamagePop(pop, () => {}, run.speed);
+            fx.burst(face, '#ff8d7a', 8);
+            face.classList.remove('fx-thorns');
+            void face.offsetWidth;
+            face.classList.add('fx-thorns');
+          } else {
+            const col = ev.kind === 'burn' ? 'var(--ember)' : 'var(--venom)';
+            const pop = createDamagePop(appEl, face, `-${ev.amount}`, col, 13);
+            animateDamagePop(pop, () => {}, run.speed);
+          }
           break;
         }
         case 'heal': {
           const face = $(ev.side + '-face');
           const pop = createDamagePop(appEl, face, `+${ev.amount}`, '#9be08a', 15);
-          animateDamagePop(pop, () => {});
+          animateDamagePop(pop, () => {}, run.speed);
           fx.burst(face, '#9be08a', 8);
+          sfx.heal();
           break;
         }
         case 'shield': {
           const face = $(ev.side + '-face');
           if (ev.amount > 0) {
-            const pop = createDamagePop(appEl, face, `+${ev.amount}🛡`, 'var(--frost)', 14);
-            animateDamagePop(pop, () => {});
             fx.burst(face, '#6cc7ff', 12);
-          } else {
-            const pop = createDamagePop(appEl, face, String(ev.amount), 'var(--frost)', 14);
-            animateDamagePop(pop, () => {});
+            sfx.shield();
           }
           break;
         }
         case 'curse': {
           const face = $(ev.side + '-face');
-          const pop = createDamagePop(appEl, face, `curse ${ev.duration}s`, '#c58aff', 14);
-          animateDamagePop(pop, () => {});
           fx.burst(face, '#c58aff', 12);
           break;
         }
@@ -141,53 +148,97 @@ export function createBattleController(
           const sym = ev.type === 'burn' ? '🔥' : '☠';
           const col = ev.type === 'burn' ? 'var(--ember)' : 'var(--venom)';
           const pop = createDamagePop(appEl, face, `+${ev.amount}${sym}`, col, 14);
-          animateDamagePop(pop, () => {});
+          animateDamagePop(pop, () => {}, run.speed);
           break;
         }
         case 'trigger': {
           const ci = [...combat.p.items, ...combat.e.items].find((c) => c.it.uid === ev.itemUid);
           if (ci?.el) {
-            punch(ci.el, 1.18);
+            punch(ci.el, ev.crit ? 1.32 : 1.18);
             const foeKey = ev.side === 'p' ? 'e' : 'p';
+            const ownFace = $(ev.side + '-face');
+            const foeFace = $(foeKey + '-face');
             const st = ci.st;
+
+            if (ev.crit) flashWare(ci.el, 'fx-crit');
+
             if (st.dmg) {
-              fx.shootProjectile(
-                ci.el,
-                $(foeKey + '-face'),
-                ev.crit ? '#ffd75e' : '#ff6d5e',
-                run.speed,
-              );
+              const foe = combat[foeKey];
+              const executing = !!st.execute && foe.hp / foe.maxHp < 0.3;
+              const hits = Math.max(1, Math.min(st.hits ?? 1, 4));
+              const color = ev.crit
+                ? '#ffd75e'
+                : executing
+                  ? '#5ef0c8'
+                  : st.pierce
+                    ? '#bfefff'
+                    : '#ff6d5e';
+              for (let h = 0; h < hits; h++) {
+                const fire = () => fx.shootProjectile(ci.el!, foeFace, color, run.speed);
+                if (h === 0) fire();
+                else setTimeout(fire, (h * 70) / Math.max(1, run.speed));
+              }
+              if (executing) flashWare(ci.el, 'fx-exec');
             }
             if (st.burn || st.poison) {
-              fx.shootProjectile(
-                ci.el,
-                $(foeKey + '-face'),
-                st.burn ? '#ff8a3d' : '#7ee06a',
-                run.speed,
-              );
+              fx.shootProjectile(ci.el, foeFace, st.burn ? '#ff8a3d' : '#7ee06a', run.speed);
+            }
+            if (!st.dmg && !st.burn && !st.poison) {
+              if (st.shield) fx.shootProjectile(ci.el, ownFace, '#6cc7ff', run.speed);
+              else if (st.heal) fx.shootProjectile(ci.el, ownFace, '#9be08a', run.speed);
             }
           }
           break;
         }
         case 'haste': {
-          const ci = combat[ev.side].items.find((c) => c.el);
-          if (ci?.el) fx.burst(ci.el, '#ffd75e', 10);
+          const board = $(ev.side + '-board');
+          fx.burst(board, '#ffd75e', 12);
+          board.classList.remove('fx-haste');
+          void board.offsetWidth;
+          board.classList.add('fx-haste');
           break;
         }
         case 'slow': {
-          fx.burst($(`${ev.side === 'p' ? 'e' : 'p'}-board`), '#6cc7ff', 14);
+          const board = $(ev.side + '-board');
+          fx.burst(board, '#6cc7ff', 14);
+          board.classList.remove('fx-slow');
+          void board.offsetWidth;
+          board.classList.add('fx-slow');
           break;
         }
-        case 'sudden_death':
-          bg.setMood('sudden');
+        case 'log': {
+          const tone = /sudden death/i.test(ev.message)
+            ? 'sudden'
+            : /strikes true|crit/i.test(ev.message)
+              ? 'crit'
+              : 'normal';
+          showCombatTicker($('combat-ticker'), ev.message, tone);
           break;
-        case 'log':
-          log(ev.message);
+        }
+        case 'sudden_death': {
+          if (!combat.over) bg.setMood('sudden');
+          for (const sideKey of ['p', 'e'] as const) {
+            const face = $(sideKey + '-face');
+            const pop = createDamagePop(appEl, face, `-${ev.damage}`, '#ff6d6a', 16);
+            animateDamagePop(pop, () => {}, run.speed);
+            face.classList.remove('fx-sudden');
+            void face.offsetWidth;
+            face.classList.add('fx-sudden');
+          }
+          shakeApp(5);
+          sfx.sudden();
           break;
-        case 'end':
+        }
+        case 'end': {
+          if (ev.won) $('e-face').classList.add('fx-ko');
+          shakeApp(9);
+          vibrate(ev.won ? 24 : [40, 30, 40]);
+          if (ev.won) sfx.win();
+          else sfx.lose();
           cancelAnimationFrame(rafId);
           setTimeout(() => onEnd(combat!, ev.won), 750);
           break;
+        }
       }
     }
   }
@@ -208,8 +259,10 @@ export function createBattleController(
 
     for (const side of [combat.p, combat.e]) {
       for (const ci of side.items) {
+        const frac = ci.t / ci.st.cd;
         const bar = ci.el?.querySelector<HTMLElement>('.cdbar i');
-        if (bar) bar.style.width = `${clamp((ci.t / ci.st.cd) * 100, 0, 100)}%`;
+        if (bar) bar.style.width = `${clamp(frac * 100, 0, 100)}%`;
+        ci.el?.classList.toggle('charged', frac >= 0.9);
       }
     }
 
@@ -219,6 +272,76 @@ export function createBattleController(
     if (!combat.over) rafId = requestAnimationFrame(tick);
   }
 
+  function beginBattle(): void {
+    const run = getRun();
+    if (!run) return;
+
+    showScreen('battle-screen', true, true);
+
+    const enemy = buildEnemy(run);
+    combat = createCombat(run, enemy);
+
+    $('bt-timer').textContent = '0.0';
+    $('bt-timer').classList.remove('sudden');
+    hideBattleHeaderActions();
+
+    $('p-face').textContent = run.hero.face;
+    $('p-name').textContent = run.hero.nm;
+    // The enemy "face" is the full boss portrait used as the battle backdrop.
+    // It doubles as the FX anchor so hits, curse tints and the KO moment land on
+    // the boss art itself.
+    const eFace = $('e-face');
+    eFace.textContent = '';
+    eFace.style.backgroundImage = enemy.img ? `url('${enemy.img}')` : '';
+    $('e-name').textContent = enemy.nm;
+    for (const fk of ['p', 'e'] as const) {
+      $(fk + '-face').classList.remove('fx-ko', 'cursed', 'fx-thorns', 'fx-sudden');
+    }
+
+    // Enemy board: combat wares only, scrolling (a boss may exceed the 5-slot cap).
+    const eBoard = $('e-board');
+    eBoard.innerHTML = '';
+    combat.e.items.forEach((ci) => {
+      ci.el = createItemElement(ci.it, 'combat');
+      eBoard.appendChild(ci.el);
+    });
+    if (combat.e.items.length === 0) {
+      eBoard.innerHTML = '<div class="empty-hint">— bare stall —</div>';
+    }
+    toggleScrollable(eBoard);
+
+    // Player board: render every ware from the stall (including non-combat income
+    // wares) so the 5-slot layout is identical to the shop, then wire combat FX
+    // elements to the wares that actually fire.
+    const pBoard = $('p-board');
+    pBoard.innerHTML = '';
+    let usedSlots = 0;
+    for (const it of run.board) {
+      const el = createItemElement(it, 'combat');
+      pBoard.appendChild(el);
+      usedSlots += getItemDef(it).sz;
+      const ci = combat.p.items.find((c) => c.it.uid === it.uid);
+      if (ci) ci.el = el;
+    }
+    fillStallSlots(pBoard, usedSlots);
+
+    showDockBattle();
+    bg.setMood('battle');
+    drawSide('p');
+    drawSide('e');
+
+    animateBattleEntrance(() => {
+      cancelAnimationFrame(rafId);
+      setTimeout(
+        () => {
+          lastTs = performance.now();
+          rafId = requestAnimationFrame(tick);
+        },
+        reduceMotion ? 100 : 750,
+      );
+    });
+  }
+
   return {
     getCombat: () => combat,
 
@@ -226,53 +349,9 @@ export function createBattleController(
       const run = getRun();
       if (!run) return;
 
-      const enemy = buildEnemy(run);
-      combat = createCombat(run, enemy);
-
-      $('bt-day').textContent = `NIGHT ${romans(run.day)}`;
-      $('bt-timer').textContent = '0.0';
-      $('bt-timer').classList.remove('sudden');
-      $('btn-speed').textContent = `${run.speed}×`;
-
-      $('p-face').textContent = run.hero.face;
-      $('p-name').textContent = run.hero.nm;
-      $('e-face').textContent = enemy.face;
-      $('e-name').textContent = enemy.nm;
-      $('combat-log').innerHTML = '';
-
-      for (const side of ['p', 'e'] as const) {
-        const boardEl = $(side + '-board');
-        boardEl.innerHTML = '';
-        combat[side].items.forEach((ci) => {
-          ci.el = createItemElement(ci.it, 'combat');
-          boardEl.appendChild(ci.el);
-        });
-        if (combat[side].items.length === 0) {
-          boardEl.innerHTML = '<div class="empty-hint">— bare stall —</div>';
-        }
-        toggleScrollable(boardEl);
-      }
-
-      const burst = document.getElementById('vs-burst');
-      burst?.classList.remove('done');
-
-      showScreen('battle-screen', true);
-      showDockBattle();
-      bg.setMood('battle');
-      drawSide('p');
-      drawSide('e');
-
-      animateBattleEntrance(() => {
-        log(enemy.threat ?? `${enemy.nm} unrolls their wares across from yours…`);
-        cancelAnimationFrame(rafId);
-        setTimeout(
-          () => {
-            lastTs = performance.now();
-            rafId = requestAnimationFrame(tick);
-          },
-          reduceMotion ? 100 : 1200,
-        );
-      });
+      showScreen('battle-screen', true, true);
+      const fiend = getFiendForRun(run);
+      showBossIntro(fiend, beginBattle);
     },
 
     stop() {

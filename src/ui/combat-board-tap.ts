@@ -1,3 +1,4 @@
+import { isItemSheetOpen } from '@/ui/components/item-sheet';
 import { $ } from '@/ui/dom';
 
 const TAP_THRESHOLD = 10;
@@ -6,6 +7,7 @@ export function bindCombatBoardTap(onTap: (uid: number) => void): { destroy(): v
   let active: { uid: number; sx: number; sy: number; moved: boolean } | null = null;
 
   function onPointerDown(e: PointerEvent): void {
+    if (isItemSheetOpen()) return;
     if (!$('battle-screen').classList.contains('on')) return;
     const item = (e.target as Element).closest<HTMLElement>('.cboard .item');
     if (!item?.dataset.uid) return;

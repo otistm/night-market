@@ -42,6 +42,7 @@ export function createRun(hero: HeroDef): RunState {
     day: 1,
     wins: 0,
     lives: STARTING_LIVES,
+    bossAttempts: 0,
     gold: STARTING_GOLD,
     maxHp: STARTING_HP,
     board: [],

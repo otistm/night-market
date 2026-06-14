@@ -3,6 +3,7 @@ import { HERO_BY_ID } from '@/data/heroes';
 import type { EnemyMeta, RunState, Tier } from '@/game/types';
 import { createCombat, tickCombat, type CombatEvent } from '@/game/combat';
 import { createItemInstance, createRun } from '@/game/run-state';
+import { itemStats } from '@/game/economy';
 
 function makeRun(heroId: string, defIds: string[]): RunState {
   const run = createRun(HERO_BY_ID[heroId]);
@@ -10,13 +11,19 @@ function makeRun(heroId: string, defIds: string[]): RunState {
   return run;
 }
 
-function makeEnemy(hp: number, wares: [string, Tier][] = [], regen = 0): EnemyMeta {
+function makeEnemy(
+  hp: number,
+  wares: [string, Tier][] = [],
+  regen = 0,
+  gimmick?: EnemyMeta['gimmick'],
+): EnemyMeta {
   return {
     nm: 'Test Fiend',
     face: '👹',
     hp,
     board: wares.map(([defId, tier]) => createItemInstance(defId, tier)),
     regen,
+    gimmick,
   };
 }
 
@@ -28,6 +35,38 @@ function runFor(combat: ReturnType<typeof createCombat>, seconds: number): Comba
   }
   return all;
 }
+
+describe('battle report', () => {
+  it('tracks triggers and damage per ware', () => {
+    const combat = createCombat(makeRun('witch', ['claws']), makeEnemy(30));
+    runFor(combat, 15);
+    expect(combat.over).toBe(true);
+    expect(combat.report).toBeDefined();
+    const row = combat.report!.player.rows.find((r) => r.defId === 'claws');
+    expect(row!.triggers).toBeGreaterThan(0);
+    expect(row!.damage).toBeGreaterThan(0);
+  });
+});
+
+describe('boss gimmicks', () => {
+  it('ward reduces non-pierce damage but pierce bypasses it', () => {
+    // Iron Claws: 6 dmg every 2.4s, no pierce → ward 0.5 makes it 3.
+    const warded = createCombat(makeRun('witch', ['claws']), makeEnemy(140, [], 0, { kind: 'ward', pct: 0.5 }));
+    runFor(warded, 2.5);
+    expect(warded.e.hp).toBe(137);
+
+    // Glacial Spike pierces → ward is ignored (8 dmg lands in full).
+    const pierced = createCombat(makeRun('witch', ['glacialspike']), makeEnemy(140, [], 0, { kind: 'ward', pct: 0.5 }));
+    runFor(pierced, 5.2);
+    expect(pierced.e.hp).toBe(132);
+  });
+
+  it('shieldwall periodically grants the boss shield', () => {
+    const combat = createCombat(makeRun('witch', []), makeEnemy(140, [], 0, { kind: 'shieldwall', every: 5, amount: 16 }));
+    runFor(combat, 5.2);
+    expect(combat.e.shield).toBe(16);
+  });
+});
 
 describe('pierce', () => {
   it('ignores shields and hits health directly', () => {
@@ -119,6 +158,52 @@ describe('coin bomb', () => {
     const combat = createCombat(run, makeEnemy(140));
     runFor(combat, 5.1);
     expect(combat.e.hp).toBe(140 - 16);
+  });
+
+  it('the Goblin scales gold-wares harder (+1 per 2 gold)', () => {
+    const run = makeRun('goblin', ['coinbomb']);
+    run.gold = 30;
+    const combat = createCombat(run, makeEnemy(140));
+    runFor(combat, 5.1);
+    expect(combat.e.hp).toBe(140 - (6 + 15));
+  });
+});
+
+describe('damage-over-time identity', () => {
+  it('burn ticks twice a second and smoulders out (decays 1/sec)', () => {
+    const combat = createCombat(makeRun('witch', []), makeEnemy(140));
+    combat.e.burn = 4;
+    runFor(combat, 2.2);
+    // Decays 1/sec → ~2 gone after ~2s; two ticks/sec means it front-loads damage.
+    expect(combat.e.burn).toBe(2);
+    expect(140 - combat.e.hp).toBeGreaterThanOrEqual(12);
+  });
+
+  it('poison never decays, rewarding long fights', () => {
+    const combat = createCombat(makeRun('witch', []), makeEnemy(140));
+    combat.e.poison = 3;
+    runFor(combat, 3.05);
+    expect(combat.e.poison).toBe(3);
+    expect(combat.e.hp).toBe(140 - 9);
+  });
+
+  it('curse amplifies burn & poison ticks (curse ↔ DoT synergy)', () => {
+    const combat = createCombat(makeRun('witch', []), makeEnemy(140));
+    combat.e.poison = 4;
+    combat.e.curse = 10;
+    runFor(combat, 1.05);
+    // round(4 × 1.5) = 6
+    expect(combat.e.hp).toBe(134);
+  });
+});
+
+describe('tempo tier scaling', () => {
+  it('haste gains a gentle additive bonus per tier', () => {
+    expect(itemStats(createItemInstance('packtotem', 2)).haste).toBeCloseTo(1.8);
+  });
+
+  it('curse gains +1s per tier', () => {
+    expect(itemStats(createItemInstance('cursedoll', 2)).curse).toBe(5);
   });
 });
 

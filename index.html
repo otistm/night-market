@@ -43,6 +43,8 @@
 
   <link rel="preload" as="image" href="/Images/Start_Screen_Background.png">
 
+  <link rel="prefetch" as="image" href="/Images/shop_background.png">
+
   <link rel="prefetch" as="image" href="/Images/The_Witch_Hagra_of_the_Bramblewood.png">
   <link rel="prefetch" as="image" href="/Images/playto_The_Vampire_Count_Mordrel.png">
   <link rel="prefetch" as="image" href="/Images/playto_The_Werewolf_Fenra_Moonscar.png">
@@ -99,7 +101,6 @@
     <div class="screen" id="hero-screen">
 
       <div class="hero-head">
-        <span class="kicker">Pledge your allegiance</span>
         <h2 class="hero-name" id="hero-name"></h2>
       </div>
 
@@ -110,7 +111,7 @@
         <p class="hero-pass" id="hero-pass"></p>
       </div>
 
-      <button class="btn primary hero-pledge" id="btn-pledge" type="button">Pledge allegiance</button>
+      <button class="btn primary hero-pledge" id="btn-pledge" type="button">Pledge your loyalty</button>
 
     </div>
 
@@ -134,21 +135,27 @@
 
       <div id="shop-body">
 
-        <div class="wares-toolbar">
+        <div class="shop-wares-block">
 
-          <span class="section-title">For sale</span>
+          <div class="wares-toolbar">
 
-          <button class="btn btn-compact" id="btn-reroll">Reroll&nbsp;·&nbsp;<span class="coin"></span><span id="reroll-cost">1</span></button>
+            <span class="section-title">Shop</span>
+
+            <button class="btn btn-compact" id="btn-reroll">Reroll&nbsp;·&nbsp;<span class="coin"></span><span id="reroll-cost">1</span></button>
+
+          </div>
+
+          <div class="shop-carousel-scroll" id="shop-carousel-scroll">
+
+            <div id="carousel" class="edge-track"></div>
+
+          </div>
 
         </div>
-
-        <div id="carousel" class="edge-track"></div>
 
         <div class="section-title section-title-stall">Your stall</div>
 
         <div id="board" class="stall-track scroll-lane__track"></div>
-
-        <div class="stall-slots" id="cap-label" aria-label="Stall slots"></div>
 
       </div>
 
@@ -160,17 +167,25 @@
 
       <div id="battle-top">
 
-        <span id="bt-timer" class="display">0.0</span>
+        <div class="battle-top-readout">
 
-        <span class="day display" id="bt-day"></span>
+          <span id="bt-timer" class="display">0.0</span>
 
-        <button class="btn ghost" id="btn-speed">1×</button>
+        </div>
+
+        <div id="battle-header-actions" class="battle-header-actions" hidden>
+
+          <button class="btn ghost btn-compact" id="btn-report" type="button">Report</button>
+
+          <button class="btn primary btn-compact" id="btn-continue" type="button">Continue</button>
+
+        </div>
 
       </div>
 
       <div class="fighter enemy" id="e-panel">
 
-        <div class="portrait" id="e-face">👹</div>
+        <div class="portrait" id="e-face"></div>
 
         <div class="fi">
 
@@ -202,27 +217,34 @@
 
             <span class="st curse" id="e-curse">🕯<b></b></span>
 
+            <span class="st thorns" id="e-thorns">💢<b></b></span>
+
           </div>
 
         </div>
 
       </div>
 
-      <div id="e-board" class="edge-track cboard"></div>
+      <div id="battle-wares">
 
-      <div id="arena-gap">
+        <div id="e-board" class="edge-track cboard"></div>
 
-        <span id="vs-burst">FIGHT</span>
+        <div id="combat-ticker" class="combat-ticker" aria-live="polite"></div>
 
-        <div id="combat-log"></div>
+        <div id="p-board" class="edge-track cboard"></div>
 
       </div>
-
-      <div id="p-board" class="edge-track cboard"></div>
 
     </div>
 
 
+
+    <div id="boss-intro" class="boss-intro" aria-hidden="true">
+      <img id="boss-intro-img" alt="" draggable="false" />
+      <div class="boss-intro-scrim" aria-hidden="true"></div>
+      <h2 id="boss-intro-name" class="boss-intro-name"></h2>
+      <p id="boss-intro-threat" class="boss-intro-threat"></p>
+    </div>
 
     <div id="result-screen"></div>
 
@@ -274,6 +296,8 @@
 
             <span class="st curse" id="p-curse">🕯<b></b></span>
 
+            <span class="st thorns" id="p-thorns">💢<b></b></span>
+
           </div>
 
         </div>
@@ -295,6 +319,12 @@
     <div class="overlay" id="hero-overlay">
 
       <div class="sheet" id="hero-sheet"></div>
+
+    </div>
+
+    <div class="overlay" id="report-overlay">
+
+      <div class="sheet battle-report-sheet" id="battle-report-sheet"></div>
 
     </div>
 

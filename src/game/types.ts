@@ -105,6 +105,8 @@ export interface HeroDef {
   dmgRampPerSec?: number;
   /** Sorcerer: slows also deal this much arcane damage per second of slow. */
   slowArcane?: number;
+  /** Goblin: gold-scaling wares gain +1 damage per this many gold (default 3). */
+  goldScaleDiv?: number;
   /** Goblin: rerolls are free. */
   freeReroll?: boolean;
   /** Goblin: wares cost this much less (min price 1). */
@@ -118,15 +120,30 @@ export interface FiendWare {
   tier: Tier;
 }
 
+/**
+ * Lightweight per-boss mechanics so same-archetype Lords feel distinct.
+ * - enrage: below `at` HP fraction, the boss's outgoing damage is ×`mult`.
+ * - shieldwall: every `every` seconds the boss gains `amount` shield.
+ * - ward: non-pierce hits the boss takes are reduced by `pct` (0–1).
+ */
+export type BossGimmick =
+  | { kind: 'enrage'; at: number; mult: number; label?: string }
+  | { kind: 'shieldwall'; every: number; amount: number }
+  | { kind: 'ward'; pct: number };
+
 export interface FiendDef {
   id: string;
   nm: string;
   face: string;
+  /** Full portrait shown before battle. */
+  img?: string;
   baseHp: number;
   threat: string;
   hint: string;
   /** Passive aura: heals this much every second. */
   regen?: number;
+  /** Optional signature mechanic. */
+  gimmick?: BossGimmick;
   wares: FiendWare[];
 }
 
@@ -147,6 +164,8 @@ export interface RunState {
   day: number;
   wins: number;
   lives: number;
+  /** Failed attempts against the current boss — scales their HP and ware tiers. */
+  bossAttempts: number;
   gold: number;
   maxHp: number;
   board: ItemInstance[];
@@ -160,11 +179,14 @@ export interface RunState {
 export interface EnemyMeta {
   nm: string;
   face: string;
+  /** Full boss portrait, used as the battle backdrop. */
+  img?: string;
   hp: number;
   board: ItemInstance[];
   threat?: string;
   hint?: string;
   regen?: number;
+  gimmick?: BossGimmick;
 }
 
 export interface CombatItem {
@@ -193,6 +215,12 @@ export interface CombatSide {
   burnT: number;
   poisonT: number;
   regenT: number;
+  /** Optional signature mechanic (bosses only). */
+  gimmick?: BossGimmick;
+  /** Timer for periodic gimmicks (e.g. shieldwall). */
+  gimmickT: number;
+  /** Whether an enrage gimmick has fired its activation narration. */
+  enraged: boolean;
   items: CombatItem[];
 }
 
@@ -206,6 +234,8 @@ export interface CombatState {
   p: CombatSide;
   e: CombatSide;
   enemyMeta: EnemyMeta;
+  /** Filled when the battle ends. */
+  report?: import('@/game/battle-report').BattleReport;
 }
 
 export type ScreenId = 'title-screen' | 'hero-screen' | 'shop-screen' | 'battle-screen';

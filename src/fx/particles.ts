@@ -33,16 +33,24 @@ export function createFxSystem(appEl: HTMLElement, canvas: HTMLCanvasElement): F
   let shots: Shot[] = [];
 
   function sizeCanvas(): void {
+    const dpr = Math.min(devicePixelRatio, 2);
     const r = appEl.getBoundingClientRect();
-    canvas.width = r.width * devicePixelRatio;
-    canvas.height = r.height * devicePixelRatio;
+    canvas.width = r.width * dpr;
+    canvas.height = r.height * dpr;
     canvas.style.width = `${r.width}px`;
     canvas.style.height = `${r.height}px`;
-    ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
   addEventListener('resize', sizeCanvas);
   sizeCanvas();
+
+  let running = false;
+  function ensureRunning(): void {
+    if (running) return;
+    running = true;
+    requestAnimationFrame(fxLoop);
+  }
 
   function fxLoop(): void {
     const dt = 1 / 60;
@@ -72,14 +80,16 @@ export function createFxSystem(appEl: HTMLElement, canvas: HTMLCanvasElement): F
         2 * (1 - k) * k * (Math.min(s.a.y, s.b.y) - 44) +
         k * k * s.b.y;
 
-      ctx.globalAlpha = 1;
+      ctx.globalAlpha = 0.22;
       ctx.fillStyle = s.c;
-      ctx.shadowColor = s.c;
-      ctx.shadowBlur = 14;
+      ctx.beginPath();
+      ctx.arc(x, y, 7, 0, 7);
+      ctx.fill();
+
+      ctx.globalAlpha = 1;
       ctx.beginPath();
       ctx.arc(x, y, 4.5, 0, 7);
       ctx.fill();
-      ctx.shadowBlur = 0;
 
       ctx.globalAlpha = 0.4;
       ctx.beginPath();
@@ -94,10 +104,13 @@ export function createFxSystem(appEl: HTMLElement, canvas: HTMLCanvasElement): F
     });
 
     ctx.globalAlpha = 1;
-    requestAnimationFrame(fxLoop);
+    if (parts.length || shots.length) {
+      requestAnimationFrame(fxLoop);
+    } else {
+      running = false;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
   }
-
-  requestAnimationFrame(fxLoop);
 
   return {
     burst(el, color, n = 10) {
@@ -117,6 +130,7 @@ export function createFxSystem(appEl: HTMLElement, canvas: HTMLCanvasElement): F
           s: 2.5 + Math.random() * 3.5,
         });
       }
+      ensureRunning();
     },
 
     confettiBurst() {
@@ -134,6 +148,7 @@ export function createFxSystem(appEl: HTMLElement, canvas: HTMLCanvasElement): F
           s: 3 + Math.random() * 3.5,
         });
       }
+      ensureRunning();
     },
 
     shootProjectile(from, to, color, speed) {
@@ -145,6 +160,7 @@ export function createFxSystem(appEl: HTMLElement, canvas: HTMLCanvasElement): F
         dur: 0.3 / Math.max(1, speed * 0.8),
         c: color,
       });
+      ensureRunning();
     },
   };
 }

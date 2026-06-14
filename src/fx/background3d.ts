@@ -220,8 +220,11 @@ export function createBackground3D(appEl: HTMLElement, canvas: HTMLCanvasElement
       geo.attributes.color.needsUpdate = true;
     }
 
-    (function loop() {
-      requestAnimationFrame(loop);
+    let rafId = 0;
+    let paused = false;
+
+    function loop(): void {
+      rafId = requestAnimationFrame(loop);
       const dt = Math.min(clock.getDelta(), 0.05);
       const t = clock.elapsedTime;
       const p = geo.attributes.position.array as Float32Array;
@@ -247,7 +250,20 @@ export function createBackground3D(appEl: HTMLElement, canvas: HTMLCanvasElement
       cam.lookAt(0, 0, 0);
 
       renderer.render(scene, cam);
-    })();
+    }
+
+    rafId = requestAnimationFrame(loop);
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && !paused) {
+        paused = true;
+        cancelAnimationFrame(rafId);
+      } else if (!document.hidden && paused) {
+        paused = false;
+        clock.getDelta();
+        rafId = requestAnimationFrame(loop);
+      }
+    });
 
     return {
       setMood(m: Mood) {

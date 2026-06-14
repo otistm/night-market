@@ -1,5 +1,11 @@
 import { ITEM_BY_ID } from '@/data/items';
-import { PRICE_MULT, SCALABLE_EFFECTS, TIER_MULT } from '@/config/constants';
+import {
+  CURSE_TIER_STEP,
+  HASTE_SLOW_TIER_STEP,
+  PRICE_MULT,
+  SCALABLE_EFFECTS,
+  TIER_MULT,
+} from '@/config/constants';
 import type { HeroDef, ItemInstance, ItemStats, RunState } from '@/game/types';
 
 export function getItemDef(it: ItemInstance) {
@@ -49,15 +55,28 @@ export function itemStats(it: ItemInstance, hero?: HeroDef): ItemStats {
     out[key] = value;
   }
 
+  // Tempo effects (haste/slow/curse) don't use TIER_MULT — that would be absurd —
+  // but they should still reward upgrading, so give them a gentle additive bump.
+  if (it.tier > 0) {
+    if (out.haste) out.haste = round1(out.haste + it.tier * HASTE_SLOW_TIER_STEP);
+    if (out.slow) out.slow = round1(out.slow + it.tier * HASTE_SLOW_TIER_STEP);
+    if (out.curse) out.curse = out.curse + it.tier * CURSE_TIER_STEP;
+  }
+
   return out;
+}
+
+function round1(n: number): number {
+  return Math.round(n * 10) / 10;
 }
 
 export function describeItem(it: ItemInstance, withHero: boolean, run?: RunState): string {
   const hero = withHero ? run?.hero : undefined;
+  const def = getItemDef(it);
   const st = itemStats(it, hero);
   const bits: string[] = [];
 
-  if (st.income) {
+  if (st.income && def.cd === 0) {
     return `Earns <b style="color:var(--goldt)">+${st.income} gold</b> at the start of each night. Does nothing in battle.`;
   }
 
@@ -88,6 +107,9 @@ export function describeItem(it: ItemInstance, withHero: boolean, run?: RunState
   let text = `Every <b>${st.cd.toFixed(1)}s</b>: ${bits.join('; ')}.`;
   if (st.thorns) {
     text += ` Aura — <b style="color:var(--ember)">thorns ${st.thorns}</b>: reflects ${st.thorns} damage to attackers.`;
+  }
+  if (st.income && def.cd !== 0) {
+    text += ` Also earns <b style="color:var(--goldt)">+${st.income} gold</b> each night.`;
   }
   return text;
 }

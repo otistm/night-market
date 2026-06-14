@@ -2,12 +2,19 @@ import { STARTING_LIVES, WIN_TARGET } from '@/config/constants';
 import type { CombatState, RunState } from '@/game/types';
 import { nightIncome } from '@/game/economy';
 import { romans } from '@/utils/romans';
-import { animateResultChildren, countUp } from '@/fx/animations';
+import { animateResultReveal, countUp } from '@/fx/animations';
+import { openBattleReport, closeBattleReport } from '@/ui/components/battle-report-sheet';
 import { $ } from '@/ui/dom';
 
 export interface ResultCallbacks {
   onContinue(): void;
   onRunEnd(): void;
+}
+
+export function hideBattleHeaderActions(): void {
+  const actions = $('battle-header-actions');
+  actions.hidden = true;
+  actions.style.opacity = '';
 }
 
 export function showResultScreen(
@@ -28,7 +35,7 @@ export function showResultScreen(
   let kick: string;
   let title: string;
   let body: string;
-  let btn = 'Next Night';
+  let btn = 'Continue';
   let reward = '';
 
   if (runWon) {
@@ -49,7 +56,7 @@ export function showResultScreen(
   } else {
     kick = `Night ${romans(run.day)}`;
     title = 'DEFEAT';
-    body = `${combat.enemyMeta.nm} picks your pockets on the way out.`;
+    body = `${combat.enemyMeta.nm} picks your pockets on the way out. You must face them again — and they grow stronger.`;
     if (combat.enemyMeta.hint) {
       body += `<br><i class="fiend-hint">${combat.enemyMeta.hint}</i>`;
     }
@@ -58,16 +65,28 @@ export function showResultScreen(
 
   const sc = $('result-screen');
   sc.className = won || runWon ? 'win' : 'loss';
+  sc.classList.remove('actions-ready', 'backdrop-clear');
   sc.classList.add('on');
   sc.innerHTML = `
-    <div class="r-kick">${kick}</div>
-    <h2>${title}</h2>
-    <p>${body}</p>
-    ${reward ? `<div class="reward">${reward}</div>` : ''}
-    <div class="meta">WINS ${run.wins}/${WIN_TARGET} &nbsp;·&nbsp; LANTERNS ${Math.max(0, run.lives)}/${STARTING_LIVES}</div>
-    <button class="btn primary" id="btn-next">${btn}</button>`;
+    <div class="result-splash">
+      <div class="r-kick">${kick}</div>
+      <h2>${title}</h2>
+      <p>${body}</p>
+      ${reward ? `<div class="reward">${reward}</div>` : ''}
+      <div class="meta">WINS ${run.wins}/${WIN_TARGET} &nbsp;·&nbsp; LANTERNS ${Math.max(0, run.lives)}/${STARTING_LIVES}</div>
+    </div>`;
 
-  animateResultChildren(sc);
+  const splash = sc.querySelector('.result-splash') as HTMLElement;
+  const headerActions = $('battle-header-actions');
+  const reportBtn = $('btn-report');
+  const continueBtn = $('btn-continue');
+
+  reportBtn.hidden = !combat.report;
+  continueBtn.textContent = btn;
+  headerActions.hidden = false;
+  headerActions.style.opacity = '0';
+
+  animateResultReveal(splash, headerActions, sc);
 
   if (won || runWon) {
     bg.setMood('win');
@@ -76,16 +95,28 @@ export function showResultScreen(
 
   countUp(document.getElementById('rw-gold'), income);
 
-  $('btn-next').addEventListener('click', () => {
-    sc.classList.remove('on');
+  reportBtn.onclick = () => {
+    if (combat.report) openBattleReport(combat.report);
+  };
+
+  continueBtn.onclick = () => {
+    closeBattleReport();
+    hideBattleHeaderActions();
+    sc.classList.remove('on', 'actions-ready', 'backdrop-clear');
     if (runWon || runLost) {
       callbacks.onRunEnd();
-    } else {
+    } else if (won) {
       run.day++;
+      run.bossAttempts = 0;
       run.maxHp += 10;
       run.gold += income;
       run.rerollCost = run.hero.freeReroll ? 0 : 1;
       callbacks.onContinue();
+    } else {
+      run.bossAttempts++;
+      run.gold += income;
+      run.rerollCost = run.hero.freeReroll ? 0 : 1;
+      callbacks.onContinue();
     }
-  }, { once: true });
+  };
 }

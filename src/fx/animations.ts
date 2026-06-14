@@ -5,7 +5,7 @@ export const reduceMotion =
   typeof matchMedia !== 'undefined' &&
   matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-export function showScreen(id: ScreenId, skipChildren = false): void {
+export function showScreen(id: ScreenId, skipChildren = false, instant = false): void {
   document.querySelectorAll('.screen').forEach((s) => {
     s.classList.remove('on');
     if (!reduceMotion) {
@@ -19,7 +19,10 @@ export function showScreen(id: ScreenId, skipChildren = false): void {
   if (!screen) return;
   screen.classList.add('on');
 
-  if (reduceMotion) return;
+  if (reduceMotion || instant) {
+    if (!reduceMotion) gsap.set(screen, { opacity: 1 });
+    return;
+  }
 
   gsap.fromTo(screen, { opacity: 0 }, { opacity: 1, duration: 0.3, ease: 'power2.out', clearProps: 'opacity' });
 
@@ -102,11 +105,6 @@ export function animateSheet(sheet: HTMLElement): void {
 
 export function animateBattleEntrance(onComplete?: () => void): void {
   if (reduceMotion) {
-    const burst = document.getElementById('vs-burst');
-    if (burst) {
-      burst.style.opacity = '0';
-      burst.classList.add('done');
-    }
     onComplete?.();
     return;
   }
@@ -116,10 +114,6 @@ export function animateBattleEntrance(onComplete?: () => void): void {
     .fromTo('#e-board .item', { y: -40, opacity: 0 }, { y: 0, opacity: 1, duration: 0.4, stagger: 0.05, ease: 'back.out(1.7)' }, 0.15)
     .fromTo('#player-dock', { y: 70, opacity: 0 }, { y: 0, opacity: 1, duration: 0.5, ease: 'power3.out' }, 0)
     .fromTo('#p-board .item', { y: 40, opacity: 0 }, { y: 0, opacity: 1, duration: 0.4, stagger: 0.05, ease: 'back.out(1.7)' }, 0.15)
-    .fromTo('#vs-burst', { scale: 0.3, opacity: 0 }, { scale: 1.25, opacity: 1, duration: 0.3, ease: 'back.out(2)' }, 0.55)
-    .to('#vs-burst', { scale: 1, duration: 0.15 }, 0.85)
-    .to('#vs-burst', { opacity: 0, scale: 1.4, duration: 0.3 }, 1.15)
-    .call(() => document.getElementById('vs-burst')?.classList.add('done'))
     .set('#e-panel,#player-dock,#e-board .item,#p-board .item', { clearProps: 'transform,opacity' });
 }
 
@@ -132,6 +126,37 @@ export function animateResultChildren(container: HTMLElement): void {
   );
 }
 
+/** Show victory/defeat splash, then fade it and reveal action buttons. */
+export function animateResultReveal(
+  splash: HTMLElement,
+  actions: HTMLElement,
+  screen: HTMLElement,
+): void {
+  if (reduceMotion) {
+    splash.hidden = true;
+    screen.classList.add('backdrop-clear', 'actions-ready');
+    gsap.set(actions, { opacity: 1, y: 0 });
+    return;
+  }
+
+  animateResultChildren(splash);
+
+  const hold = 2.4;
+  const fade = 0.55;
+  gsap
+    .timeline({ delay: 0.75 })
+    .to({}, { duration: hold })
+    .to(splash, { opacity: 0, y: -28, duration: fade, ease: 'power2.in' })
+    .add(() => screen.classList.add('backdrop-clear'), '<')
+    .set(splash, { display: 'none' })
+    .fromTo(
+      actions,
+      { opacity: 0, y: -12 },
+      { opacity: 1, y: 0, duration: 0.48, ease: 'power3.out' },
+    )
+    .call(() => screen.classList.add('actions-ready'));
+}
+
 export function flashGold(el: HTMLElement): void {
   if (reduceMotion) {
     punch(el, 1.3);
@@ -139,6 +164,29 @@ export function flashGold(el: HTMLElement): void {
   }
   gsap.fromTo(el, { color: '#ff4d6a' }, { color: '#f5ecd9', duration: 0.7 });
   punch(el, 1.3);
+}
+
+export function showCombatTicker(
+  el: HTMLElement,
+  msg: string,
+  tone: 'normal' | 'crit' | 'sudden' = 'normal',
+): void {
+  el.textContent = msg;
+  el.classList.toggle('crit', tone === 'crit');
+  el.classList.toggle('sudden', tone === 'sudden');
+  if (reduceMotion) {
+    el.style.opacity = '1';
+    gsap.killTweensOf(el);
+    gsap.to(el, { opacity: 0, duration: 0.3, delay: 1.2 });
+    return;
+  }
+  gsap.killTweensOf(el);
+  gsap.fromTo(
+    el,
+    { opacity: 0, y: 10, scale: 0.9 },
+    { opacity: 1, y: 0, scale: 1, duration: 0.2, ease: 'back.out(2)', overwrite: true },
+  );
+  gsap.to(el, { opacity: 0, y: -8, duration: 0.4, delay: 1.1, ease: 'power1.in' });
 }
 
 export function animateDragGhost(
@@ -162,11 +210,6 @@ export function removeGhost(ghost: HTMLElement, onComplete: () => void): void {
   }});
 }
 
-export function animateLogLine(line: HTMLElement): void {
-  if (reduceMotion) return;
-  gsap.fromTo(line, { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.3, clearProps: 'transform' });
-}
-
 export function animateHpBar(el: HTMLElement, widthPct: number): void {
   if (reduceMotion) {
     el.style.width = `${widthPct}%`;
@@ -183,7 +226,7 @@ export function animateShieldBar(el: HTMLElement, widthPct: number): void {
   gsap.to(el, { width: `${widthPct}%`, duration: 0.25, ease: 'power2.out', overwrite: 'auto' });
 }
 
-export function animateDamagePop(el: HTMLElement, onComplete: () => void): void {
+export function animateDamagePop(el: HTMLElement, onComplete: () => void, speed = 1): void {
   if (reduceMotion) {
     setTimeout(() => {
       el.remove();
@@ -191,9 +234,22 @@ export function animateDamagePop(el: HTMLElement, onComplete: () => void): void 
     }, 900);
     return;
   }
-  gsap.fromTo(el, { scale: 0.4, opacity: 0, y: 0 }, { scale: 1.15, opacity: 1, y: -16, duration: 0.18, ease: 'back.out(2)' });
-  gsap.to(el, { y: -58, opacity: 0, scale: 0.9, duration: 0.8, delay: 0.18, ease: 'power1.in', onComplete: () => {
-    el.remove();
-    onComplete();
-  }});
+  const k = 1 / Math.max(1, Math.sqrt(speed));
+  gsap.fromTo(
+    el,
+    { scale: 0.4, opacity: 0, y: 0 },
+    { scale: 1.15, opacity: 1, y: -16, duration: 0.18 * k, ease: 'back.out(2)' },
+  );
+  gsap.to(el, {
+    y: -58,
+    opacity: 0,
+    scale: 0.9,
+    duration: 0.8 * k,
+    delay: 0.18 * k,
+    ease: 'power1.in',
+    onComplete: () => {
+      el.remove();
+      onComplete();
+    },
+  });
 }

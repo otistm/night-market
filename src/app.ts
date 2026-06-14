@@ -5,6 +5,7 @@ import { buyItem, rerollShop, sellItem } from '@/game/shop-actions';
 import { TIER_COLORS } from '@/config/constants';
 import { createBackground3D } from '@/fx/background3d';
 import { createFxSystem } from '@/fx/particles';
+import { initAudioUnlock } from '@/fx/sfx';
 import {
   flashGold,
   punch,
@@ -12,13 +13,15 @@ import {
   showScreen,
   titleIntro,
 } from '@/fx/animations';
-import { closeItemSheet, bindSheetOverlay, openItemSheet } from '@/ui/components/item-sheet';
+import { closeItemSheet, bindSheetOverlay, openItemSheet, isItemSheetOpen } from '@/ui/components/item-sheet';
+import { bindReportOverlay, closeBattleReport } from '@/ui/components/battle-report-sheet';
 import { bindHeroOverlay, closeHeroSheet, openHeroSheet } from '@/ui/components/hero-sheet';
 import { createDragDrop } from '@/ui/drag-drop';
 import { bindCombatBoardTap } from '@/ui/combat-board-tap';
 import { bindTitleSwipe } from '@/ui/title-swipe';
 import { createHeroCarousel, type HeroCarousel } from '@/ui/hero-carousel';
 import { bindAllScrollLanes } from '@/ui/scroll-lane';
+import { preloadGameImages } from '@/ui/preload';
 import { hideDock, showDockShop } from '@/ui/player-dock';
 import { createBattleController } from '@/ui/screens/battle-controller';
 import { showResultScreen } from '@/ui/screens/result-view';
@@ -46,8 +49,11 @@ export class NightMarketApp {
 
   constructor() {
     bindAllScrollLanes();
+    initAudioUnlock();
+    preloadGameImages();
     this.bindEvents();
     bindSheetOverlay(closeItemSheet);
+    bindReportOverlay(closeBattleReport);
     bindHeroOverlay(closeHeroSheet);
     titleIntro();
     hideDock();
@@ -73,11 +79,9 @@ export class NightMarketApp {
   private bindEvents(): void {
     $('btn-reroll').addEventListener('click', () => this.handleReroll());
     $('btn-fight').addEventListener('click', () => this.battle.start());
-    $('btn-speed').addEventListener('click', () => this.cycleSpeed());
     $('dock-avatar').addEventListener('click', () => this.openHeroInfo());
     $('btn-pledge').addEventListener('click', () => {
-      const active = this.heroCarousel?.getActive();
-      if (active) this.selectHero(active.hero, active.card);
+      this.heroCarousel?.confirmActive();
     });
   }
 
@@ -97,12 +101,21 @@ export class NightMarketApp {
     this.heroCarousel = createHeroCarousel({
       track: $('hero-coverflow'),
       heroes: HEROES,
-      onChange: (hero) => {
-        nameEl.textContent = hero.nm;
-        classEl.textContent = hero.tag;
-        passEl.textContent = hero.pass;
+      onChange: (slide) => {
+        const pledge = $('btn-pledge');
+        if (slide.kind === 'intro') {
+          nameEl.textContent = '';
+          classEl.textContent = '';
+          passEl.textContent = '';
+          pledge.textContent = 'Continue';
+        } else {
+          nameEl.textContent = slide.hero.nm;
+          classEl.textContent = slide.hero.tag;
+          passEl.textContent = slide.hero.pass;
+          pledge.textContent = 'Pledge your loyalty';
+        }
       },
-      onConfirm: (hero, card) => this.selectHero(hero, card),
+      onConfirmHero: (hero, card) => this.selectHero(hero, card),
     });
 
     this.bg.setBackdropMode('default');
@@ -125,17 +138,11 @@ export class NightMarketApp {
   }
 
   private handleReroll(): void {
+    if (isItemSheetOpen()) return;
     if (!this.run || !rerollShop(this.run)) return;
     rollShop(this.run);
     this.refreshShop();
     shopEntrance();
-  }
-
-  private cycleSpeed(): void {
-    if (!this.run) return;
-    this.run.speed = this.run.speed === 1 ? 2 : this.run.speed === 2 ? 4 : 1;
-    $('btn-speed').textContent = `${this.run.speed}×`;
-    punch($('btn-speed'));
   }
 
   private refreshShop(): void {
@@ -187,7 +194,6 @@ export class NightMarketApp {
 
   private onBattleEnd(combat: import('@/game/types').CombatState, won: boolean): void {
     if (!this.run) return;
-    hideDock();
     showResultScreen(this.run, combat, won, this.fx, this.bg, {
       onContinue: () => {
         rollShop(this.run!);

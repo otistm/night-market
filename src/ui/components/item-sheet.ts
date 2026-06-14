@@ -1,8 +1,10 @@
-import { TIER_COLORS, TIER_NAMES } from '@/config/constants';
+import { TIER_COLORS } from '@/config/constants';
 import type { ItemInstance, RunState } from '@/game/types';
 import { describeItem, getItemDef, itemPrice, sellValue, itemStats } from '@/game/economy';
 import { animateSheet } from '@/fx/animations';
 import { $ } from '@/ui/dom';
+import { itemIconHtml } from '@/ui/item-icon';
+import { tierStarCount, tierStarHtml } from '@/ui/tier-star';
 
 export interface ItemSheetCallbacks {
   onClose(): void;
@@ -44,6 +46,32 @@ function bindSheetSwipe(sheet: HTMLElement, onClose: () => void): void {
   });
 }
 
+export function isItemSheetOpen(): boolean {
+  return $('app').classList.contains('item-sheet-open');
+}
+
+function syncRerollButton(): void {
+  const btn = $('btn-reroll') as HTMLButtonElement;
+  if (isItemSheetOpen()) {
+    btn.disabled = true;
+    return;
+  }
+  const cost = Number($('reroll-cost').textContent);
+  const gold = Number($('hud-gold').textContent);
+  btn.disabled = gold < cost;
+}
+
+function setItemSheetLock(locked: boolean): void {
+  const app = $('app');
+  app.classList.toggle('item-sheet-open', locked);
+  for (const child of app.children) {
+    if (child.id === 'sheet-overlay') continue;
+    if (locked) child.setAttribute('inert', '');
+    else child.removeAttribute('inert');
+  }
+  syncRerollButton();
+}
+
 export function openItemSheet(
   it: ItemInstance,
   run: RunState | null,
@@ -54,7 +82,6 @@ export function openItemSheet(
   const def = getItemDef(it);
   const st = itemStats(it, mine ? run?.hero : undefined);
   const sheet = $('item-sheet');
-  const tcol = TIER_COLORS[it.tier];
 
   let actions = `<div class="actions"><button class="btn ghost" data-action="close">Close</button></div>`;
 
@@ -72,9 +99,9 @@ export function openItemSheet(
     <div class="grab" aria-hidden="true"></div>
     <div class="sheet-head">
       <h3>
-        <span class="big-ico">${def.ico}</span>
+        <span class="big-ico">${itemIconHtml(def.ico, def.nm)}</span>
         <span class="sheet-title">${def.nm}</span>
-        <span class="tierlab" style="color:${tcol}">${TIER_NAMES[it.tier]}</span>
+        ${tierStarHtml(it.tier, `sheet-tier-star t${it.tier}`)}
       </h3>
     </div>
     <div class="sheet-body">
@@ -86,7 +113,7 @@ export function openItemSheet(
         ${
           it.tier < 3
             ? `<span class="chip" style="color:${TIER_COLORS[it.tier + 1]}">duplicate → upgrade ⤴</span>`
-            : `<span class="chip" style="color:var(--diamond)">max tier</span>`
+            : `<span class="chip" style="color:${TIER_COLORS[3]}">${tierStarCount(it.tier)}★ max</span>`
         }
       </div>
       <div class="flav">"${def.flav}"</div>
@@ -94,6 +121,7 @@ export function openItemSheet(
     <div class="sheet-foot">${actions}</div>`;
 
   $('sheet-overlay').classList.add('on');
+  setItemSheetLock(true);
   animateSheet(sheet);
   bindSheetSwipe(sheet, onClose);
 
@@ -104,10 +132,11 @@ export function openItemSheet(
 
 export function closeItemSheet(): void {
   $('sheet-overlay').classList.remove('on');
+  setItemSheetLock(false);
 }
 
 export function bindSheetOverlay(onBackdropClose: () => void): void {
-  $('sheet-overlay').addEventListener('pointerdown', (e) => {
+  $('sheet-overlay').addEventListener('pointerup', (e) => {
     if (e.target === $('sheet-overlay')) onBackdropClose();
   });
 }
