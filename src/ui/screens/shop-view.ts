@@ -7,7 +7,7 @@ import {
   fillStallSlots,
   toggleScrollable,
 } from '@/ui/components/cards';
-import { isItemSheetOpen } from '@/ui/components/item-sheet';
+import { syncRerollButton } from '@/ui/components/item-sheet';
 import { resetAppShellOffset, scrollChildIntoView } from '@/ui/scroll-utils';
 import { romans } from '@/utils/romans';
 import { $ } from '@/ui/dom';
@@ -16,8 +16,7 @@ export function renderShop(run: RunState): void {
   $('hud-day').textContent = `NIGHT ${romans(run.day)}`;
   $('hud-gold').textContent = String(run.gold);
   $('reroll-cost').textContent = String(run.rerollCost);
-  ($('btn-reroll') as HTMLButtonElement).disabled =
-    isItemSheetOpen() || run.gold < run.rerollCost;
+  syncRerollButton();
 
   $('p-face').textContent = run.hero.face;
 

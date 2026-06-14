@@ -44,6 +44,7 @@
   <link rel="preload" as="image" href="/Images/Start_Screen_Background.png">
 
   <link rel="prefetch" as="image" href="/Images/shop_background.png">
+  <link rel="prefetch" as="image" href="/Images/shop_opening.png">
 
   <link rel="prefetch" as="image" href="/Images/The_Witch_Hagra_of_the_Bramblewood.png">
   <link rel="prefetch" as="image" href="/Images/playto_The_Vampire_Count_Mordrel.png">
@@ -89,7 +90,11 @@
           <div class="title-enter-fill" aria-hidden="true"></div>
           <span class="title-enter-label">Enter the market</span>
           <div class="title-enter-thumb" id="title-enter-thumb">
-            <span class="title-enter-arrow" aria-hidden="true">→</span>
+            <span class="title-enter-arrow" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M5 12h12M13 7l5 5-5 5" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
           </div>
         </div>
       </div>
@@ -238,6 +243,14 @@
     </div>
 
 
+
+    <div id="shop-opening" class="shop-opening" aria-hidden="true">
+      <img src="/Images/shop_opening.png" alt="" draggable="false" />
+      <div class="shop-opening-scrim" aria-hidden="true"></div>
+      <footer class="shop-opening-foot">
+        <p id="shop-opening-caption" class="shop-opening-caption">My shop is open...</p>
+      </footer>
+    </div>
 
     <div id="boss-intro" class="boss-intro" aria-hidden="true">
       <img id="boss-intro-img" alt="" draggable="false" />

@@ -47,15 +47,20 @@ function bindSheetSwipe(sheet: HTMLElement, onClose: () => void): void {
 }
 
 export function isItemSheetOpen(): boolean {
-  return $('app').classList.contains('item-sheet-open');
+  return (
+    $('sheet-overlay').classList.contains('on') ||
+    $('app').classList.contains('item-sheet-open')
+  );
 }
 
-function syncRerollButton(): void {
+export function syncRerollButton(): void {
   const btn = $('btn-reroll') as HTMLButtonElement;
   if (isItemSheetOpen()) {
     btn.disabled = true;
+    btn.setAttribute('aria-disabled', 'true');
     return;
   }
+  btn.removeAttribute('aria-disabled');
   const cost = Number($('reroll-cost').textContent);
   const gold = Number($('hud-gold').textContent);
   btn.disabled = gold < cost;
@@ -77,6 +82,8 @@ export function openItemSheet(
   run: RunState | null,
   options: { shopMode?: boolean; where?: 'shop' | 'board' } & ItemSheetCallbacks,
 ): void {
+  setItemSheetLock(true);
+
   const { shopMode = false, where, onClose, onBuy, onSell } = options;
   const mine = shopMode || (run?.board.some((b) => b.uid === it.uid) ?? false);
   const def = getItemDef(it);
@@ -121,7 +128,6 @@ export function openItemSheet(
     <div class="sheet-foot">${actions}</div>`;
 
   $('sheet-overlay').classList.add('on');
-  setItemSheetLock(true);
   animateSheet(sheet);
   bindSheetSwipe(sheet, onClose);
 

@@ -5,7 +5,7 @@ import { buyItem, rerollShop, sellItem } from '@/game/shop-actions';
 import { TIER_COLORS } from '@/config/constants';
 import { createBackground3D } from '@/fx/background3d';
 import { createFxSystem } from '@/fx/particles';
-import { initAudioUnlock } from '@/fx/sfx';
+import { initAudioUnlock, sfx } from '@/fx/sfx';
 import {
   flashGold,
   punch,
@@ -17,7 +17,7 @@ import { closeItemSheet, bindSheetOverlay, openItemSheet, isItemSheetOpen } from
 import { bindReportOverlay, closeBattleReport } from '@/ui/components/battle-report-sheet';
 import { bindHeroOverlay, closeHeroSheet, openHeroSheet } from '@/ui/components/hero-sheet';
 import { createDragDrop } from '@/ui/drag-drop';
-import { bindCombatBoardTap } from '@/ui/combat-board-tap';
+import { showShopOpening } from '@/ui/shop-opening';
 import { bindTitleSwipe } from '@/ui/title-swipe';
 import { createHeroCarousel, type HeroCarousel } from '@/ui/hero-carousel';
 import { bindAllScrollLanes } from '@/ui/scroll-lane';
@@ -64,7 +64,9 @@ export class NightMarketApp {
       onShopChanged: () => this.refreshShop(),
       onTapItem: (it, where) => this.openSheet(it, where),
       onBuyFailed: () => flashGold($('hud-gold')),
+      onBuy: () => sfx.buy(),
       onSell: () => {
+        sfx.buy();
         punch($('hud-gold'));
         vibrate([10, 30, 10]);
       },
@@ -130,10 +132,12 @@ export class NightMarketApp {
       this.heroCarousel = null;
       this.run = createRun(hero);
       this.refreshShop();
-      showDockShop();
-      showScreen('shop-screen');
+      showScreen('shop-screen', true, true);
       this.bg.setMood('shop');
-      shopEntrance();
+      showShopOpening(() => {
+        showDockShop();
+        shopEntrance();
+      });
     }, 170);
   }
 
@@ -159,19 +163,23 @@ export class NightMarketApp {
         if (!this.run) return;
         const result = buyItem(this.run, item, this.run.board.length);
         if (!result.ok) flashGold($('hud-gold'));
-        else if (result.merged) {
-          const merged = this.run.board.find((b) => b.uid === this.run!.revealUid);
-          if (merged) this.playMergeFx(merged);
-        } else {
-          vibrate(12);
-          this.bg.pulse();
+        else {
+          sfx.buy();
+          if (result.merged) {
+            const merged = this.run.board.find((b) => b.uid === this.run!.revealUid);
+            if (merged) this.playMergeFx(merged);
+          } else {
+            vibrate(12);
+            this.bg.pulse();
+          }
         }
         closeItemSheet();
         this.refreshShop();
       },
       onSell: (item) => {
         if (!this.run) return;
-        sellItem(this.run, item);
+        if (!sellItem(this.run, item)) return;
+        sfx.buy();
         punch($('hud-gold'));
         vibrate([10, 30, 10]);
         closeItemSheet();

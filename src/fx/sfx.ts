@@ -1,16 +1,29 @@
 /**
- * Lightweight combat audio — fully synthesized with the Web Audio API so the
- * game ships no binary sound assets. Lazily initialized on the first user
- * gesture to satisfy browser autoplay policies, and globally mutable via a
- * persisted mute flag. Groundwork for a future music bed / richer sound design.
+ * Combat and shop audio — sample playback plus synthesized UI stingers.
+ * Lazily initialized on the first user gesture to satisfy browser autoplay policies.
  */
 
 const MUTE_KEY = 'nm-muted';
 
+const SAMPLES = {
+  hit: '/Audio/hit.wav',
+  burn: '/Audio/burn.wav',
+  poison: '/Audio/poison.wav',
+  buy: '/Audio/buy.wav',
+} as const;
+
+type SampleKey = keyof typeof SAMPLES;
+
 let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
 let muted = readMuted();
-let lastHitAt = 0;
+const lastSampleAt: Partial<Record<SampleKey, number>> = {};
+const sampleThrottleMs: Record<SampleKey, number> = {
+  hit: 45,
+  burn: 120,
+  poison: 120,
+  buy: 80,
+};
 
 function readMuted(): boolean {
   try {
@@ -32,6 +45,27 @@ function ensure(): AudioContext | null {
   }
   if (ctx.state === 'suspended') void ctx.resume();
   return ctx;
+}
+
+function preloadSamples(): void {
+  for (const path of Object.values(SAMPLES)) {
+    const audio = new Audio(path);
+    audio.preload = 'auto';
+    audio.load();
+  }
+}
+
+function playSample(key: SampleKey, volume = 1): void {
+  if (muted) return;
+  ensure();
+  const now = performance.now();
+  const throttle = sampleThrottleMs[key];
+  if (now - (lastSampleAt[key] ?? 0) < throttle) return;
+  lastSampleAt[key] = now;
+
+  const audio = new Audio(SAMPLES[key]);
+  audio.volume = 0.5 * volume;
+  void audio.play().catch(() => {});
 }
 
 interface ToneOpts {
@@ -83,14 +117,23 @@ export const sfx = {
   /** Create + resume the context from within a user gesture. */
   unlock(): void {
     ensure();
+    preloadSamples();
   },
 
   hit(crit = false): void {
-    const now = performance.now();
-    if (now - lastHitAt < 45) return; // throttle dense multi-hit volleys
-    lastHitAt = now;
-    noise(crit ? 0.14 : 0.09, crit ? 0.32 : 0.2, crit ? 3200 : 1800);
-    tone({ freq: crit ? 280 : 180, to: crit ? 90 : 70, dur: crit ? 0.16 : 0.1, type: 'triangle', gain: 0.22 });
+    playSample('hit', crit ? 1.15 : 1);
+  },
+
+  burn(): void {
+    playSample('burn');
+  },
+
+  poison(): void {
+    playSample('poison');
+  },
+
+  buy(): void {
+    playSample('buy');
   },
 
   heal(): void {

@@ -21,6 +21,8 @@ export function preloadGameImages(): void {
   }
 
   const warm = (): void => {
+    const img = new Image();
+    img.src = '/Images/shop_opening.png';
     for (const url of urls) {
       const img = new Image();
       img.decoding = 'async';

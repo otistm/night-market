@@ -42,6 +42,7 @@ export interface DragDropCallbacks {
   onShopChanged(): void;
   onTapItem(it: ItemInstance, where: 'shop' | 'board'): void;
   onBuyFailed(): void;
+  onBuy(): void;
   onSell(): void;
   onMerge(it: ItemInstance): void;
 }
@@ -379,9 +380,12 @@ export function createDragDrop(callbacks: DragDropCallbacks): { destroy(): void 
           const res = buyItem(run, d.it, insertAt < 0 ? run.board.length : insertAt);
           if (!res.ok) {
             if (res.reason === 'no_gold') callbacks.onBuyFailed();
-          } else if (res.merged) {
-            const merged = run.board.find((b) => b.uid === run.revealUid);
-            if (merged) callbacks.onMerge(merged);
+          } else {
+            callbacks.onBuy();
+            if (res.merged) {
+              const merged = run.board.find((b) => b.uid === run.revealUid);
+              if (merged) callbacks.onMerge(merged);
+            }
           }
         }),
       );

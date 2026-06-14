@@ -1,22 +1,8 @@
-import type { BattleReport, ItemReportRow, SideBattleReport } from '@/game/battle-report';
+import type { BattleReport, SideBattleReport } from '@/game/battle-report';
 import { sideTotals, totalDamage } from '@/game/battle-report';
 import { animateSheet } from '@/fx/animations';
 import { $ } from '@/ui/dom';
 import { itemIconHtml } from '@/ui/item-icon';
-
-/** Blank zeros instead of dash-spam. */
-function n(v: number): string {
-  return v > 0 ? String(v) : '';
-}
-
-function rowHasActivity(row: ItemReportRow): boolean {
-  return (
-    row.triggers > 0 ||
-    totalDamage(row) > 0 ||
-    row.heal > 0 ||
-    row.shield > 0
-  );
-}
 
 /** Ranked "top contributors" list — the default, phone-friendly view. */
 function renderTop(side: SideBattleReport): string {
@@ -75,62 +61,12 @@ function renderSummary(side: SideBattleReport): string {
     .join('')}</div>`;
 }
 
-/** Full per-ware breakdown table. DoT is one column. */
-function renderFullRow(row: ItemReportRow): string {
-  if (!rowHasActivity(row)) return '';
-  const dot = row.burnDamage + row.poisonDamage;
-  return `<tr>
-    <td class="br-ware"><span class="br-ico">${itemIconHtml(row.ico, row.nm)}</span><span class="br-nm">${row.nm}</span></td>
-    <td class="br-num">${n(row.triggers)}</td>
-    <td class="br-num">${n(row.damage)}</td>
-    <td class="br-num">${n(dot)}</td>
-    <td class="br-num">${n(row.thornsDamage)}</td>
-    <td class="br-num">${n(row.heal)}</td>
-    <td class="br-num">${n(row.shield)}</td>
-    <td class="br-num br-total">${n(totalDamage(row))}</td>
-  </tr>`;
-}
-
-function renderFullTable(side: SideBattleReport): string {
-  const rows = side.rows.map(renderFullRow).filter(Boolean).join('');
-  const t = sideTotals(side.rows);
-  const dot = t.burnDamage + t.poisonDamage;
-  const total = t.damage + dot + t.thornsDamage;
-
-  return `<div class="br-table-wrap">
-      <table class="br-table">
-        <thead>
-          <tr>
-            <th>Ware</th><th>Fires</th><th>Hit</th><th>DoT</th>
-            <th>Thorns</th><th>Heal</th><th>Shield</th><th>Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${rows || '<tr><td colspan="8" class="br-empty">No wares fired</td></tr>'}
-        </tbody>
-        <tfoot>
-          <tr>
-            <td>Totals</td>
-            <td>${n(t.triggers)}</td>
-            <td>${n(t.damage)}</td>
-            <td>${n(dot)}</td>
-            <td>${n(t.thornsDamage)}</td>
-            <td>${n(t.heal)}</td>
-            <td>${n(t.shield)}</td>
-            <td>${n(total)}</td>
-          </tr>
-        </tfoot>
-      </table>
-    </div>`;
-}
-
 function renderSide(side: SideBattleReport): string {
   return `
     <section class="br-side">
       <h4 class="br-side-title">${side.label}</h4>
       ${renderSummary(side)}
       ${renderTop(side)}
-      ${renderFullTable(side)}
     </section>`;
 }
 

@@ -114,10 +114,14 @@ export function createBattleController(
             face.classList.remove('fx-thorns');
             void face.offsetWidth;
             face.classList.add('fx-thorns');
-          } else {
-            const col = ev.kind === 'burn' ? 'var(--ember)' : 'var(--venom)';
-            const pop = createDamagePop(appEl, face, `-${ev.amount}`, col, 13);
+          } else if (ev.kind === 'burn') {
+            const pop = createDamagePop(appEl, face, `-${ev.amount}`, 'var(--ember)', 13);
             animateDamagePop(pop, () => {}, run.speed);
+            sfx.burn();
+          } else if (ev.kind === 'poison') {
+            const pop = createDamagePop(appEl, face, `-${ev.amount}`, 'var(--venom)', 13);
+            animateDamagePop(pop, () => {}, run.speed);
+            sfx.poison();
           }
           break;
         }
@@ -149,6 +153,8 @@ export function createBattleController(
           const col = ev.type === 'burn' ? 'var(--ember)' : 'var(--venom)';
           const pop = createDamagePop(appEl, face, `+${ev.amount}${sym}`, col, 14);
           animateDamagePop(pop, () => {}, run.speed);
+          if (ev.type === 'burn') sfx.burn();
+          else sfx.poison();
           break;
         }
         case 'trigger': {
