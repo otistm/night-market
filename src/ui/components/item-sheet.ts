@@ -1,6 +1,6 @@
 import { TIER_COLORS } from '@/config/constants';
 import type { ItemInstance, RunState } from '@/game/types';
-import { describeItem, getItemDef, itemPrice, sellValue, itemStats } from '@/game/economy';
+import { describeItem, getItemDef, sellValue, itemStats } from '@/game/economy';
 import { animateSheet } from '@/fx/animations';
 import { $ } from '@/ui/dom';
 import { itemIconHtml } from '@/ui/item-icon';
@@ -8,7 +8,6 @@ import { tierStarCount, tierStarHtml } from '@/ui/tier-star';
 
 export interface ItemSheetCallbacks {
   onClose(): void;
-  onBuy?(it: ItemInstance): void;
   onSell?(it: ItemInstance): void;
 }
 
@@ -84,7 +83,7 @@ export function openItemSheet(
 ): void {
   setItemSheetLock(true);
 
-  const { shopMode = false, where, onClose, onBuy, onSell } = options;
+  const { shopMode = false, where, onClose, onSell } = options;
   const mine = shopMode || (run?.board.some((b) => b.uid === it.uid) ?? false);
   const def = getItemDef(it);
   const st = itemStats(it, mine ? run?.hero : undefined);
@@ -92,11 +91,7 @@ export function openItemSheet(
 
   let actions = `<div class="actions"><button class="btn ghost" data-action="close">Close</button></div>`;
 
-  if (shopMode && where === 'shop') {
-    actions = `<div class="actions">
-      <button class="btn ghost" data-action="close">Close</button>
-      <button class="btn primary" data-action="buy">Buy · ${itemPrice(it, run?.hero)}</button></div>`;
-  } else if (shopMode && where === 'board') {
+  if (shopMode && where === 'board') {
     actions = `<div class="actions">
       <button class="btn ghost" data-action="close">Close</button>
       <button class="btn" data-action="sell">Sell · ${sellValue(it)}</button></div>`;
@@ -132,7 +127,6 @@ export function openItemSheet(
   bindSheetSwipe(sheet, onClose);
 
   sheet.querySelector('[data-action="close"]')?.addEventListener('click', onClose);
-  sheet.querySelector('[data-action="buy"]')?.addEventListener('click', () => onBuy?.(it));
   sheet.querySelector('[data-action="sell"]')?.addEventListener('click', () => onSell?.(it));
 }
 

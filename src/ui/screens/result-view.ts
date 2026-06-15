@@ -4,6 +4,7 @@ import { nightIncome } from '@/game/economy';
 import { romans } from '@/utils/romans';
 import { animateResultReveal, countUp } from '@/fx/animations';
 import { openBattleReport, closeBattleReport } from '@/ui/components/battle-report-sheet';
+import { showLordsGallery } from '@/ui/lords-gallery';
 import { $ } from '@/ui/dom';
 
 export interface ResultCallbacks {
@@ -103,20 +104,35 @@ export function showResultScreen(
     closeBattleReport();
     hideBattleHeaderActions();
     sc.classList.remove('on', 'actions-ready', 'backdrop-clear');
-    if (runWon || runLost) {
+
+    const proceedRunEnd = (): void => {
       callbacks.onRunEnd();
-    } else if (won) {
+    };
+
+    const proceedNight = (): void => {
       run.day++;
       run.bossAttempts = 0;
       run.maxHp += 10;
       run.gold += income;
       run.rerollCost = run.hero.freeReroll ? 0 : 1;
       callbacks.onContinue();
-    } else {
+    };
+
+    const proceedRetry = (): void => {
       run.bossAttempts++;
       run.gold += income;
       run.rerollCost = run.hero.freeReroll ? 0 : 1;
       callbacks.onContinue();
+    };
+
+    if (runWon) {
+      showLordsGallery(run.wins, proceedRunEnd, { autoDismiss: true });
+    } else if (runLost) {
+      proceedRunEnd();
+    } else if (won) {
+      showLordsGallery(run.wins, proceedNight, { autoDismiss: true });
+    } else {
+      proceedRetry();
     }
   };
 }

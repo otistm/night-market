@@ -130,9 +130,9 @@
 
         <div class="hud-stats">
 
-          <span class="stat-chip win" id="hud-wins" aria-label="Wins"><span class="stat-ico">⚔</span><span id="hud-wins-val">0 / 10</span></span>
+          <button type="button" class="stat-chip win" id="hud-wins" aria-label="The 10 Lords"><span class="stat-ico" aria-hidden="true">⚔</span><span id="hud-wins-val">0 / 10</span></button>
 
-          <span class="stat-chip life" id="hud-lives" aria-label="Lanterns"><span class="stat-ico">🏮</span><span id="hud-lives-val">3 / 3</span></span>
+          <button type="button" class="stat-chip life" id="hud-lives" aria-label="Hearts"><span class="stat-ico" aria-hidden="true">❤</span><span id="hud-lives-val">3 / 3</span></button>
 
         </div>
 
@@ -259,6 +259,17 @@
       <p id="boss-intro-threat" class="boss-intro-threat"></p>
     </div>
 
+    <div id="lords-gallery" class="lords-gallery" aria-hidden="true">
+      <div class="lords-gallery-scrim" aria-hidden="true"></div>
+      <div class="lords-gallery-inner">
+        <header class="lords-gallery-head">
+          <h2 class="lords-gallery-title">The 10 Lords</h2>
+          <p id="lords-gallery-sub" class="lords-gallery-sub"></p>
+        </header>
+        <div id="lords-gallery-grid" class="lords-gallery-grid"></div>
+      </div>
+    </div>
+
     <div id="result-screen"></div>
 
 
@@ -338,6 +349,12 @@
     <div class="overlay" id="report-overlay">
 
       <div class="sheet battle-report-sheet" id="battle-report-sheet"></div>
+
+    </div>
+
+    <div class="overlay stat-hint-overlay" id="stat-hint-overlay">
+
+      <div class="stat-hint-card" id="stat-hint-card" role="dialog" aria-modal="true"></div>
 
     </div>
 

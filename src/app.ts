@@ -1,7 +1,7 @@
 import { HEROES } from '@/data/heroes';
 import type { HeroDef, ItemInstance, RunState } from '@/game/types';
 import { createRun, rollShop } from '@/game/run-state';
-import { buyItem, rerollShop, sellItem } from '@/game/shop-actions';
+import { rerollShop, sellItem } from '@/game/shop-actions';
 import { TIER_COLORS } from '@/config/constants';
 import { createBackground3D } from '@/fx/background3d';
 import { createFxSystem } from '@/fx/particles';
@@ -16,6 +16,7 @@ import {
 import { closeItemSheet, bindSheetOverlay, openItemSheet, isItemSheetOpen } from '@/ui/components/item-sheet';
 import { bindReportOverlay, closeBattleReport } from '@/ui/components/battle-report-sheet';
 import { bindHeroOverlay, closeHeroSheet, openHeroSheet } from '@/ui/components/hero-sheet';
+import { bindStatHints } from '@/ui/components/stat-hint';
 import { bindCombatBoardTap } from '@/ui/combat-board-tap';
 import { createDragDrop } from '@/ui/drag-drop';
 import { showShopOpening } from '@/ui/shop-opening';
@@ -56,6 +57,10 @@ export class NightMarketApp {
     bindSheetOverlay(closeItemSheet);
     bindReportOverlay(closeBattleReport);
     bindHeroOverlay(closeHeroSheet);
+    bindStatHints(
+      () => $('shop-screen').classList.contains('on') && !isItemSheetOpen(),
+      () => this.run?.wins ?? 0,
+    );
     titleIntro();
     hideDock();
 
@@ -167,23 +172,6 @@ export class NightMarketApp {
       shopMode: true,
       where,
       onClose: closeItemSheet,
-      onBuy: (item) => {
-        if (!this.run) return;
-        const result = buyItem(this.run, item, this.run.board.length);
-        if (!result.ok) flashGold($('hud-gold'));
-        else {
-          sfx.buy();
-          if (result.merged) {
-            const merged = this.run.board.find((b) => b.uid === this.run!.revealUid);
-            if (merged) this.playMergeFx(merged);
-          } else {
-            vibrate(12);
-            this.bg.pulse();
-          }
-        }
-        closeItemSheet();
-        this.refreshShop();
-      },
       onSell: (item) => {
         if (!this.run) return;
         if (!sellItem(this.run, item)) return;
