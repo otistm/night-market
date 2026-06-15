@@ -864,7 +864,6 @@ body {
 }
 
 #shop-body {
-  position: relative;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -877,33 +876,6 @@ body {
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
-}
-
-#upgrade-hints-layer {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 3;
-  overflow: visible;
-}
-
-#upgrade-hints-layer svg {
-  display: block;
-  overflow: visible;
-}
-
-.upgrade-hint-path {
-  fill: none;
-  stroke: #ffae34;
-  stroke-width: 2.5;
-  stroke-linecap: round;
-  stroke-dasharray: 7 5;
-  animation: upgradeFlow 0.75s linear infinite;
-  filter: drop-shadow(0 0 4px rgba(255, 174, 52, 0.55));
-}
-
-@keyframes upgradeFlow {
-  to { stroke-dashoffset: -12; }
 }
 
 .shop-card.upgrade-hint,
@@ -964,11 +936,6 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .upgrade-hint-path {
-    animation: none;
-    stroke-dasharray: none;
-  }
-
   .shop-card.upgrade-hint .upgrade-arrow,
   .item.upgrade-hint .upgrade-arrow {
     animation: none;
