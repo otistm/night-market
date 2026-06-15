@@ -9,6 +9,7 @@ import {
 } from '@/ui/components/cards';
 import { syncRerollButton } from '@/ui/components/item-sheet';
 import { resetAppShellOffset, scrollChildIntoView } from '@/ui/scroll-utils';
+import { updateUpgradeHints } from '@/ui/upgrade-hints';
 import { romans } from '@/utils/romans';
 import { $ } from '@/ui/dom';
 
@@ -53,5 +54,6 @@ export function renderShop(run: RunState): void {
 
   requestAnimationFrame(() => {
     resetAppShellOffset();
+    updateUpgradeHints(run);
   });
 }

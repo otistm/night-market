@@ -124,3 +124,19 @@ export function findMergeTarget(board: ItemInstance[], it: ItemInstance): ItemIn
     (b) => b.defId === it.defId && b.tier === it.tier && b.tier < 3 && b.uid !== it.uid,
   );
 }
+
+export interface UpgradePair {
+  shopUid: number;
+  boardUid: number;
+}
+
+/** Shop wares that can merge into a matching stall ware (same def + tier, tier < 3). */
+export function findUpgradePairs(run: RunState): UpgradePair[] {
+  const pairs: UpgradePair[] = [];
+  for (const it of run.shop) {
+    if (!it) continue;
+    const target = findMergeTarget(run.board, it);
+    if (target) pairs.push({ shopUid: it.uid, boardUid: target.uid });
+  }
+  return pairs;
+}
