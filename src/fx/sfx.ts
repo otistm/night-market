@@ -95,24 +95,6 @@ function tone(o: ToneOpts): void {
   osc.stop(t0 + o.dur + 0.03);
 }
 
-function noise(dur: number, gain: number, filterHz: number): void {
-  const c = ensure();
-  if (!c || !master || muted) return;
-  const frames = Math.floor(c.sampleRate * dur);
-  const buf = c.createBuffer(1, frames, c.sampleRate);
-  const data = buf.getChannelData(0);
-  for (let i = 0; i < frames; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / frames);
-  const src = c.createBufferSource();
-  src.buffer = buf;
-  const lp = c.createBiquadFilter();
-  lp.type = 'lowpass';
-  lp.frequency.value = filterHz;
-  const g = c.createGain();
-  g.gain.value = gain;
-  src.connect(lp).connect(g).connect(master);
-  src.start();
-}
-
 export const sfx = {
   /** Create + resume the context from within a user gesture. */
   unlock(): void {

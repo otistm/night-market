@@ -16,6 +16,7 @@ import {
 import { closeItemSheet, bindSheetOverlay, openItemSheet, isItemSheetOpen } from '@/ui/components/item-sheet';
 import { bindReportOverlay, closeBattleReport } from '@/ui/components/battle-report-sheet';
 import { bindHeroOverlay, closeHeroSheet, openHeroSheet } from '@/ui/components/hero-sheet';
+import { bindCombatBoardTap } from '@/ui/combat-board-tap';
 import { createDragDrop } from '@/ui/drag-drop';
 import { showShopOpening } from '@/ui/shop-opening';
 import { bindTitleSwipe } from '@/ui/title-swipe';
