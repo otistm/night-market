@@ -904,30 +904,15 @@ body {
   height: 0;
   border-left: 5px solid transparent;
   border-right: 5px solid transparent;
-  border-top: 7px solid #2c1503;
+  border-bottom: 7px solid #2c1503;
 }
 
-.shop-card.upgrade-hint .upgrade-arrow {
-  bottom: 8px;
-  left: 50%;
-  margin-left: -12px;
-  animation: upgradeNudgeDown 1.1s ease-in-out infinite;
-}
-
+.shop-card.upgrade-hint .upgrade-arrow,
 .item.upgrade-hint .upgrade-arrow {
   top: 8px;
   left: 50%;
   margin-left: -12px;
   animation: upgradeNudgeUp 1.1s ease-in-out infinite;
-}
-
-.item.upgrade-hint .upgrade-arrow::before {
-  transform: rotate(180deg);
-}
-
-@keyframes upgradeNudgeDown {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(4px); }
 }
 
 @keyframes upgradeNudgeUp {
