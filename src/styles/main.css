@@ -613,6 +613,17 @@ body {
   color: var(--dim);
 }
 
+.hero-cf-intro-hint {
+  margin: 0;
+  font-family: 'Unbounded', sans-serif;
+  font-size: clamp(11px, 3.2vw, 13px);
+  font-weight: 500;
+  line-height: 1.45;
+  letter-spacing: 0.04em;
+  color: var(--amber);
+  text-align: left;
+}
+
 .hero-meta {
   display: flex;
   flex-direction: column;
@@ -650,6 +661,11 @@ body {
   height: 52px;
   min-height: 52px;
   z-index: 25;
+}
+
+#hero-screen.hero-screen--intro .hero-pledge,
+.hero-pledge[hidden] {
+  display: none !important;
 }
 
 /* item cards */

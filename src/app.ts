@@ -99,22 +99,29 @@ export class NightMarketApp {
     const nameEl = $('hero-name');
     const classEl = $('hero-class');
     const passEl = $('hero-pass');
+    const pledge = $('btn-pledge');
+    const heroScreen = $('hero-screen');
+
+    pledge.hidden = true;
+    heroScreen.classList.add('hero-screen--intro');
 
     this.heroCarousel?.destroy();
     this.heroCarousel = createHeroCarousel({
       track: $('hero-coverflow'),
       heroes: HEROES,
       onChange: (slide) => {
-        const pledge = $('btn-pledge');
         if (slide.kind === 'intro') {
           nameEl.textContent = '';
           classEl.textContent = '';
           passEl.textContent = '';
-          pledge.textContent = 'Continue';
+          pledge.hidden = true;
+          heroScreen.classList.add('hero-screen--intro');
         } else {
           nameEl.textContent = slide.hero.nm;
           classEl.textContent = slide.hero.tag;
           passEl.textContent = slide.hero.pass;
+          pledge.hidden = false;
+          heroScreen.classList.remove('hero-screen--intro');
           pledge.textContent = 'Pledge your loyalty';
         }
       },

@@ -40,11 +40,11 @@ function buildIntroCard(): HTMLElement {
       <h3 class="hero-cf-intro-title">Night Market</h3>
       <p class="hero-cf-intro-sub">Code of Conduct</p>
       <ul class="hero-cf-intro-list">
-        <li>Pledge Your Loyalty</li>
         <li>Head to the shops and buy things to fight with</li>
         <li>Defeat &ldquo;The 10 Lords&rdquo;</li>
         <li>Rise Through the Ranks</li>
       </ul>
+      <p class="hero-cf-intro-hint">Continue to select your class and pledge your loyalty</p>
       <p class="hero-cf-intro-tag">Who knows&hellip;you might one day become the 11th Lord.</p>
     </div>`;
   return card;
