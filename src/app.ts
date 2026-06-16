@@ -68,7 +68,7 @@ export class NightMarketApp {
       getRun: () => this.run,
       isShopActive: () => $('shop-screen').classList.contains('on'),
       onShopChanged: () => this.refreshShop(),
-      onTapItem: (it, where) => this.openSheet(it, where),
+      onTapItem: (it) => this.openSheet(it),
       onBuyFailed: () => flashGold($('hud-gold')),
       onBuy: () => sfx.buy(),
       onSell: () => {
@@ -167,7 +167,7 @@ export class NightMarketApp {
     renderShop(this.run);
   }
 
-  private openSheet(it: ItemInstance, where: 'shop' | 'board'): void {
+  private openSheet(it: ItemInstance): void {
     openItemSheet(it, this.run, {
       shopMode: true,
       onClose: closeItemSheet,
