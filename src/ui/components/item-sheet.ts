@@ -1,6 +1,6 @@
 import { TIER_COLORS } from '@/config/constants';
 import type { ItemInstance, RunState } from '@/game/types';
-import { describeItem, getItemDef, sellValue, itemStats } from '@/game/economy';
+import { describeItem, getItemDef, itemStats } from '@/game/economy';
 import { animateSheet } from '@/fx/animations';
 import { $ } from '@/ui/dom';
 import { itemIconHtml } from '@/ui/item-icon';
@@ -8,7 +8,6 @@ import { tierStarCount, tierStarHtml } from '@/ui/tier-star';
 
 export interface ItemSheetCallbacks {
   onClose(): void;
-  onSell?(it: ItemInstance): void;
 }
 
 let swipeStartY = 0;
@@ -54,7 +53,9 @@ export function isItemSheetOpen(): boolean {
 
 export function syncRerollButton(): void {
   const btn = $('btn-reroll') as HTMLButtonElement;
-  if (isItemSheetOpen()) {
+  const sheetOpen = isItemSheetOpen();
+  btn.hidden = sheetOpen;
+  if (sheetOpen) {
     btn.disabled = true;
     btn.setAttribute('aria-disabled', 'true');
     return;
@@ -79,23 +80,17 @@ function setItemSheetLock(locked: boolean): void {
 export function openItemSheet(
   it: ItemInstance,
   run: RunState | null,
-  options: { shopMode?: boolean; where?: 'shop' | 'board' } & ItemSheetCallbacks,
+  options: { shopMode?: boolean } & ItemSheetCallbacks,
 ): void {
   setItemSheetLock(true);
 
-  const { shopMode = false, where, onClose, onSell } = options;
+  const { shopMode = false, onClose } = options;
   const mine = shopMode || (run?.board.some((b) => b.uid === it.uid) ?? false);
   const def = getItemDef(it);
   const st = itemStats(it, mine ? run?.hero : undefined);
   const sheet = $('item-sheet');
 
-  let actions = `<div class="actions"><button class="btn ghost" data-action="close">Close</button></div>`;
-
-  if (shopMode && where === 'board') {
-    actions = `<div class="actions">
-      <button class="btn ghost" data-action="close">Close</button>
-      <button class="btn" data-action="sell">Sell · ${sellValue(it)}</button></div>`;
-  }
+  const actions = `<div class="actions"><button class="btn ghost" data-action="close">Close</button></div>`;
 
   sheet.innerHTML = `
     <div class="grab" aria-hidden="true"></div>
@@ -127,7 +122,6 @@ export function openItemSheet(
   bindSheetSwipe(sheet, onClose);
 
   sheet.querySelector('[data-action="close"]')?.addEventListener('click', onClose);
-  sheet.querySelector('[data-action="sell"]')?.addEventListener('click', () => onSell?.(it));
 }
 
 export function closeItemSheet(): void {

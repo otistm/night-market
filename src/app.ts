@@ -1,7 +1,7 @@
 import { HEROES } from '@/data/heroes';
 import type { HeroDef, ItemInstance, RunState } from '@/game/types';
 import { createRun, rollShop } from '@/game/run-state';
-import { rerollShop, sellItem } from '@/game/shop-actions';
+import { rerollShop } from '@/game/shop-actions';
 import { TIER_COLORS } from '@/config/constants';
 import { createBackground3D } from '@/fx/background3d';
 import { createFxSystem } from '@/fx/particles';
@@ -170,17 +170,7 @@ export class NightMarketApp {
   private openSheet(it: ItemInstance, where: 'shop' | 'board'): void {
     openItemSheet(it, this.run, {
       shopMode: true,
-      where,
       onClose: closeItemSheet,
-      onSell: (item) => {
-        if (!this.run) return;
-        if (!sellItem(this.run, item)) return;
-        sfx.buy();
-        punch($('hud-gold'));
-        vibrate([10, 30, 10]);
-        closeItemSheet();
-        this.refreshShop();
-      },
     });
   }
 

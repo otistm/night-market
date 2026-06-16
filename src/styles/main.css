@@ -2216,10 +2216,7 @@ button.stat-chip {
 }
 
 #app.item-sheet-open #btn-reroll {
-  opacity: 0.35;
-  filter: grayscale(0.9) brightness(0.55);
-  pointer-events: none;
-  cursor: default;
+  display: none;
 }
 
 #app.item-sheet-open > :not(#sheet-overlay),
@@ -2775,12 +2772,12 @@ button.stat-chip {
   transition: filter 0.45s ease, opacity 0.45s ease;
 }
 
-.lords-gallery.focus-reveal .lord-card:not(.pending-cross):not(.focus-lord) .lord-portrait-wrap img {
+.lords-gallery.focus-reveal .lord-card:not(.pending-cross):not(.focus-lord):not(.defeated) .lord-portrait-wrap img {
   filter: brightness(0.16) grayscale(0.8) !important;
   opacity: 0.42;
 }
 
-.lords-gallery.focus-reveal .lord-card:not(.pending-cross):not(.focus-lord) .lord-name {
+.lords-gallery.focus-reveal .lord-card:not(.pending-cross):not(.focus-lord):not(.defeated) .lord-name {
   opacity: 0.35;
 }
 
@@ -2829,19 +2826,6 @@ button.stat-chip {
   text-shadow: 0 2px 10px rgba(0, 0, 0, 0.95);
   background: linear-gradient(180deg, transparent, rgba(8, 5, 16, 0.88));
   pointer-events: none;
-}
-
-.lord-card.defeated:not(.pending-cross) .lord-portrait-wrap img {
-  filter: grayscale(0.85) brightness(0.48);
-}
-
-.lord-card.pending-cross .lord-portrait-wrap img {
-  filter: none;
-}
-
-.lord-card.defeated .lord-name,
-.lord-card.pending-cross .lord-name {
-  color: rgba(255, 255, 255, 0.72);
 }
 
 .lord-card.defeated .lord-name {
