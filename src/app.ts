@@ -16,7 +16,12 @@ import {
 import { closeItemSheet, bindSheetOverlay, openItemSheet, isItemSheetOpen } from '@/ui/components/item-sheet';
 import { bindReportOverlay, closeBattleReport } from '@/ui/components/battle-report-sheet';
 import { bindHeroOverlay, closeHeroSheet, openHeroSheet } from '@/ui/components/hero-sheet';
-import { bindStatHints } from '@/ui/components/stat-hint';
+import { bindStatHints, closeStatHint } from '@/ui/components/stat-hint';
+import {
+  bindNewRunPromptOverlay,
+  closeNewRunPrompt,
+  openNewRunPrompt,
+} from '@/ui/components/new-run-prompt';
 import { bindCombatBoardTap } from '@/ui/combat-board-tap';
 import { createDragDrop } from '@/ui/drag-drop';
 import { showShopOpening } from '@/ui/shop-opening';
@@ -61,6 +66,7 @@ export class NightMarketApp {
       () => $('shop-screen').classList.contains('on') && !isItemSheetOpen(),
       () => this.run?.wins ?? 0,
     );
+    bindNewRunPromptOverlay(closeNewRunPrompt);
     titleIntro();
     hideDock();
 
@@ -87,6 +93,7 @@ export class NightMarketApp {
   private bindEvents(): void {
     $('btn-reroll').addEventListener('click', () => this.handleReroll());
     $('btn-fight').addEventListener('click', () => this.battle.start());
+    $('btn-shop-exit').addEventListener('click', () => this.handleShopExit());
     $('dock-avatar').addEventListener('click', () => this.openHeroInfo());
     $('btn-pledge').addEventListener('click', () => {
       this.heroCarousel?.confirmActive();
@@ -98,8 +105,10 @@ export class NightMarketApp {
     openHeroSheet(this.run, closeHeroSheet);
   }
 
-  private showHeroSelect(): void {
+  private showHeroSelect(initialIndex = 0): void {
     hideDock();
+    closeNewRunPrompt();
+    closeStatHint();
 
     const nameEl = $('hero-name');
     const classEl = $('hero-class');
@@ -114,6 +123,7 @@ export class NightMarketApp {
     this.heroCarousel = createHeroCarousel({
       track: $('hero-coverflow'),
       heroes: HEROES,
+      initialIndex,
       onChange: (slide) => {
         if (slide.kind === 'intro') {
           nameEl.textContent = '';
@@ -135,6 +145,30 @@ export class NightMarketApp {
 
     this.bg.setBackdropMode('default');
     showScreen('hero-screen');
+  }
+
+  private witchCarouselIndex(): number {
+    const heroIndex = HEROES.findIndex((hero) => hero.id === 'witch');
+    return heroIndex >= 0 ? heroIndex + 1 : 1;
+  }
+
+  private handleShopExit(): void {
+    if (!$('shop-screen').classList.contains('on')) return;
+    if (isItemSheetOpen()) closeItemSheet();
+    openNewRunPrompt({
+      onConfirm: () => this.startNewRunFromShop(),
+      onCancel: closeNewRunPrompt,
+    });
+  }
+
+  private startNewRunFromShop(): void {
+    closeNewRunPrompt();
+    closeItemSheet();
+    closeStatHint();
+    this.run = null;
+    this.battle.stop();
+    hideDock();
+    this.showHeroSelect(this.witchCarouselIndex());
   }
 
   private selectHero(hero: HeroDef, el: HTMLElement): void {

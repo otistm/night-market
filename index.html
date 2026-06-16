@@ -126,7 +126,10 @@
 
       <div id="hud">
 
-        <span class="day" id="hud-day">NIGHT I</span>
+        <div class="hud-top">
+          <span class="day" id="hud-day">NIGHT I</span>
+          <button type="button" class="shop-exit-btn" id="btn-shop-exit" aria-label="Start new run">×</button>
+        </div>
 
         <div class="hud-stats">
 
@@ -355,6 +358,12 @@
     <div class="overlay stat-hint-overlay" id="stat-hint-overlay">
 
       <div class="stat-hint-card" id="stat-hint-card" role="dialog" aria-modal="true"></div>
+
+    </div>
+
+    <div class="overlay new-run-overlay" id="new-run-overlay">
+
+      <div class="new-run-card" id="new-run-card" role="dialog" aria-modal="true"></div>
 
     </div>
 

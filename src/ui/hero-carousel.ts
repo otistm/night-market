@@ -10,6 +10,7 @@ export type HeroCarouselSlide =
 interface HeroCarouselOptions {
   track: HTMLElement;
   heroes: readonly HeroDef[];
+  initialIndex?: number;
   onChange(slide: HeroCarouselSlide): void;
   onConfirmHero(hero: HeroDef, card: HTMLElement): void;
 }
@@ -18,6 +19,7 @@ export interface HeroCarousel {
   destroy(): void;
   getActive(): { slide: HeroCarouselSlide; card: HTMLElement };
   confirmActive(): void;
+  goToIndex(index: number, animate?: boolean): void;
 }
 
 const TAP_SLOP = 8;
@@ -51,7 +53,7 @@ function buildIntroCard(): HTMLElement {
 }
 
 export function createHeroCarousel(opts: HeroCarouselOptions): HeroCarousel {
-  const { track, heroes, onChange, onConfirmHero } = opts;
+  const { track, heroes, onChange, onConfirmHero, initialIndex = INTRO_INDEX } = opts;
   const cards: HTMLElement[] = [];
 
   track.innerHTML = '';
@@ -73,7 +75,7 @@ export function createHeroCarousel(opts: HeroCarouselOptions): HeroCarousel {
   });
 
   const lastIndex = cards.length - 1;
-  let current = INTRO_INDEX;
+  let current = clampIndex(initialIndex);
   let viewFloat = 0;
   let spacing = 1;
   let tween: gsap.core.Tween | null = null;
@@ -236,9 +238,9 @@ export function createHeroCarousel(opts: HeroCarouselOptions): HeroCarousel {
 
   requestAnimationFrame(() => {
     measure();
-    render(INTRO_INDEX);
+    render(current);
   });
-  notify(INTRO_INDEX);
+  notify(current);
 
   return {
     destroy() {
@@ -255,5 +257,8 @@ export function createHeroCarousel(opts: HeroCarouselOptions): HeroCarousel {
       return { slide: slideAt(current, heroes), card: cards[current] };
     },
     confirmActive,
+    goToIndex(index: number, animate = true) {
+      settleTo(index, animate);
+    },
   };
 }
