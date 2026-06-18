@@ -43,8 +43,7 @@
 
   <link rel="preload" as="image" href="/Images/Start_Screen_Background.png">
 
-  <link rel="prefetch" as="image" href="/Images/shop_background.png">
-  <link rel="prefetch" as="image" href="/Images/shop_opening.png">
+  <link rel="prefetch" as="image" href="/Images/shop_background_2.png">
 
   <link rel="prefetch" as="image" href="/Images/The_Witch_Hagra_of_the_Bramblewood.png">
   <link rel="prefetch" as="image" href="/Images/playto_The_Vampire_Count_Mordrel.png">
@@ -111,12 +110,19 @@
 
       <div class="hero-coverflow" id="hero-coverflow" role="listbox" aria-label="Choose your peddler"></div>
 
+      <p class="hero-intro-hint" id="hero-intro-hint">
+        Select your class
+        <span class="hero-intro-arrow" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M5 12h12M13 7l5 5-5 5" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </span>
+      </p>
+
       <div class="hero-meta">
         <div class="hero-class" id="hero-class"></div>
         <p class="hero-pass" id="hero-pass"></p>
       </div>
-
-      <button class="btn primary hero-pledge" id="btn-pledge" type="button" hidden>Pledge your loyalty</button>
 
     </div>
 
@@ -243,11 +249,7 @@
 
 
     <div id="shop-opening" class="shop-opening" aria-hidden="true">
-      <img src="/Images/shop_opening.png" alt="" draggable="false" />
-      <div class="shop-opening-scrim" aria-hidden="true"></div>
-      <footer class="shop-opening-foot">
-        <p id="shop-opening-caption" class="shop-opening-caption">My shop is open...</p>
-      </footer>
+      <h2 id="shop-opening-night" class="shop-opening-night">Night I</h2>
     </div>
 
     <div id="boss-intro" class="boss-intro" aria-hidden="true">

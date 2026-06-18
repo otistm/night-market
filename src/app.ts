@@ -103,9 +103,6 @@ export class NightMarketApp {
     $('btn-fight').addEventListener('click', () => this.battle.start());
     $('btn-shop-exit').addEventListener('click', () => this.handleShopExit());
     $('dock-avatar').addEventListener('click', () => this.openHeroInfo());
-    $('btn-pledge').addEventListener('click', () => {
-      this.heroCarousel?.confirmActive();
-    });
   }
 
   private openHeroInfo(): void {
@@ -121,10 +118,8 @@ export class NightMarketApp {
     const nameEl = $('hero-name');
     const classEl = $('hero-class');
     const passEl = $('hero-pass');
-    const pledge = $('btn-pledge');
     const heroScreen = $('hero-screen');
 
-    pledge.hidden = true;
     heroScreen.classList.add('hero-screen--intro');
 
     this.heroCarousel?.destroy();
@@ -137,15 +132,12 @@ export class NightMarketApp {
           nameEl.textContent = '';
           classEl.textContent = '';
           passEl.textContent = '';
-          pledge.hidden = true;
           heroScreen.classList.add('hero-screen--intro');
         } else {
           nameEl.textContent = slide.hero.nm;
           classEl.textContent = slide.hero.tag;
           passEl.textContent = slide.hero.pass;
-          pledge.hidden = false;
           heroScreen.classList.remove('hero-screen--intro');
-          pledge.textContent = 'Pledge your loyalty';
         }
       },
       onConfirmHero: (hero, card) => this.selectHero(hero, card),
@@ -189,7 +181,7 @@ export class NightMarketApp {
       this.refreshShop();
       showScreen('shop-screen', true, true);
       this.bg.setMood('shop');
-      showShopOpening(() => {
+      showShopOpening(this.run.day, () => {
         showDockShop();
         shopEntrance();
       });

@@ -151,18 +151,18 @@ describe('thorns', () => {
 });
 
 describe('coin bomb', () => {
-  it('scales damage with gold held at battle start', () => {
-    // Coin Bomb: every 5.0s deal 6 damage, +1 per 3 gold.
+  it('scales damage with gold spent this night', () => {
+    // Coin Bomb: every 5.0s deal 6 damage, +1 per 3 gold spent this night.
     const run = makeRun('witch', ['coinbomb']);
-    run.gold = 30;
+    run.goldSpentThisNight = 30;
     const combat = createCombat(run, makeEnemy(140));
     runFor(combat, 5.1);
     expect(combat.e.hp).toBe(140 - 16);
   });
 
-  it('the Goblin scales gold-wares harder (+1 per 2 gold)', () => {
+  it('the Goblin scales gold-wares harder (+1 per 2 gold spent)', () => {
     const run = makeRun('goblin', ['coinbomb']);
-    run.gold = 30;
+    run.goldSpentThisNight = 30;
     const combat = createCombat(run, makeEnemy(140));
     runFor(combat, 5.1);
     expect(combat.e.hp).toBe(140 - (6 + 15));

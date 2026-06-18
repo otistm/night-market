@@ -23,7 +23,7 @@ export const COMBAT_SUDDEN_DEATH_AT = 30;
 
 /** Lump-sum gold offered as a boss-defeat reward, scaling with the night. */
 export function bossBounty(day: number): number {
-  return 6 + day * 2;
+  return 5 + day;
 }
 
 /** A cursed side takes amplified burn & poison ticks (curse ↔ DoT synergy). */

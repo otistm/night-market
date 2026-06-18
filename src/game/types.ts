@@ -227,6 +227,8 @@ export interface RunState {
   board: ItemInstance[];
   shop: (ItemInstance | null)[];
   rerollCost: number;
+  /** Gold spent (buys + rerolls) since this night's shop opened — fuels goldScale wares. */
+  goldSpentThisNight: number;
   speed: 1 | 2 | 4;
   /** UID to scroll into view after next shop render */
   revealUid?: number;
@@ -285,8 +287,8 @@ export interface CombatState {
   over: boolean;
   sudden: boolean;
   sdT: number;
-  /** Player gold snapshot at battle start (Coin Bomb scaling). */
-  goldAtStart: number;
+  /** Gold the player spent this night, snapshotted at battle start (goldScale ware scaling). */
+  goldSpent: number;
   p: CombatSide;
   e: CombatSide;
   enemyMeta: EnemyMeta;

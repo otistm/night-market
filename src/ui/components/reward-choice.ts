@@ -135,6 +135,10 @@ export function closeRewardChoice(): void {
     active.boardHome.parent.insertBefore(board, active.boardHome.next);
     active = null;
   }
+  // Hide the battle arena now so the lords gallery and fade-to-shop never reveal
+  // it again — once the reward is chosen, the next thing the player sees is the
+  // shop (the battle screen is re-shown only when the next battle begins).
+  $('battle-screen').classList.remove('on');
   $('reward-overlay').classList.remove('on');
 }
 

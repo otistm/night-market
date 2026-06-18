@@ -48,6 +48,7 @@ export function createRun(hero: HeroDef): RunState {
     board: [],
     shop: [],
     rerollCost: hero.freeReroll ? 0 : 1,
+    goldSpentThisNight: 0,
     speed: 1,
   };
   rollShop(run);

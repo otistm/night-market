@@ -46,7 +46,6 @@ function buildIntroCard(): HTMLElement {
         <li>Defeat &ldquo;The 10 Lords&rdquo;</li>
         <li>Rise Through the Ranks</li>
       </ul>
-      <p class="hero-cf-intro-hint">Continue to select your class and pledge your loyalty</p>
       <p class="hero-cf-intro-tag">Who knows&hellip;you might one day become the 11th Lord.</p>
     </div>`;
   return card;

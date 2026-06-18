@@ -33,6 +33,8 @@ export function showResultScreen(
   const runWon = run.wins >= WIN_TARGET;
   const runLost = run.lives <= 0;
   const income = nightIncome(run);
+  // A loss only pays out half the night's income (see proceedRetry).
+  const shownGold = won ? income : Math.floor(income / 2);
 
   let kick: string;
   let title: string;
@@ -95,7 +97,7 @@ export function showResultScreen(
     fx.confettiBurst();
   }
 
-  countUp(document.getElementById('rw-gold'), income);
+  countUp(document.getElementById('rw-gold'), shownGold);
 
   reportBtn.onclick = () => {
     if (combat.report) openBattleReport(combat.report);
@@ -116,13 +118,16 @@ export function showResultScreen(
       run.maxHp += 10;
       run.gold += income;
       run.rerollCost = run.hero.freeReroll ? 0 : 1;
+      run.goldSpentThisNight = 0;
       callbacks.onContinue();
     };
 
     const proceedRetry = (): void => {
       run.bossAttempts++;
-      run.gold += income;
+      // Losing a Lord sacrifices about half a night's gold on top of the lantern.
+      run.gold += Math.floor(income / 2);
       run.rerollCost = run.hero.freeReroll ? 0 : 1;
+      run.goldSpentThisNight = 0;
       callbacks.onContinue();
     };
 

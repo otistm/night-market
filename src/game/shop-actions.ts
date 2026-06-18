@@ -40,6 +40,7 @@ export function buyItem(
   }
 
   run.gold -= price;
+  run.goldSpentThisNight += price;
   const shopIdx = run.shop.findIndex((x) => x?.uid === it.uid);
   if (shopIdx >= 0) run.shop[shopIdx] = null;
 
@@ -84,7 +85,12 @@ export function sellItem(run: RunState, it: ItemInstance): boolean {
 
 export function rerollShop(run: RunState): boolean {
   if (run.gold < run.rerollCost) return false;
-  run.gold -= run.rerollCost;
+  const cost = run.rerollCost;
+  run.gold -= cost;
+  run.goldSpentThisNight += cost;
+  // Each reroll within a night costs more, so fishing is a real decision.
+  // Goblin rerolls stay free (reset to 0 each night in result-view).
+  if (!run.hero.freeReroll) run.rerollCost = cost + 1;
   return true;
 }
 

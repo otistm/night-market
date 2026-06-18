@@ -616,15 +616,52 @@ button.stat-chip {
   color: var(--dim);
 }
 
-.hero-cf-intro-hint {
+/* Swipe cue beneath the intro card — only shown on the Code of Conduct slide. */
+.hero-intro-hint {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
   margin: 0;
+  flex: none;
   font-family: 'Unbounded', sans-serif;
-  font-size: clamp(11px, 3.2vw, 13px);
-  font-weight: 500;
-  line-height: 1.45;
-  letter-spacing: 0.04em;
+  font-size: clamp(18px, 5.2vw, 24px);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
   color: var(--amber);
-  text-align: left;
+  text-align: center;
+}
+
+#hero-screen.hero-screen--intro .hero-intro-hint {
+  display: flex;
+}
+
+.hero-intro-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.15em;
+  height: 1.15em;
+  line-height: 1;
+  animation: heroIntroArrowNudge 1.1s ease-in-out infinite;
+}
+
+.hero-intro-arrow svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+@keyframes heroIntroArrowNudge {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(6px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-intro-arrow {
+    animation: none;
+  }
 }
 
 .hero-meta {
@@ -655,21 +692,6 @@ button.stat-chip {
   min-height: 2.9em;
 }
 
-.hero-pledge {
-  position: absolute;
-  left: 50%;
-  bottom: calc(8px + var(--safe-b));
-  transform: translateX(-50%);
-  width: min(320px, calc(100% - 36px));
-  height: 52px;
-  min-height: 52px;
-  z-index: 25;
-}
-
-#hero-screen.hero-screen--intro .hero-pledge,
-.hero-pledge[hidden] {
-  display: none !important;
-}
 
 /* item cards */
 .item.frost-surface,
@@ -899,7 +921,7 @@ button.stat-chip {
   right: 0;
   top: -22vh;
   height: calc(100% + 22vh);
-  background: url('/Images/shop_background.png') center top / cover no-repeat;
+  background: url('/Images/shop_background_2.png') center top / cover no-repeat;
   z-index: 0;
   pointer-events: none;
 }
@@ -1725,10 +1747,13 @@ button.stat-chip {
   overscroll-behavior-x: contain;
 }
 
+/* The lord's board mirrors the player's stall dimensions (same padding and
+   min-height), so equal wares read at an identical size on both boards. */
 #e-board.cboard {
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   border-bottom: none;
-  padding-bottom: 4px;
+  min-height: calc(var(--card-h) + 26px);
+  padding: 12px max(12px, var(--safe-l)) 12px max(12px, var(--safe-r));
 }
 
 /* player board is a 1:1 copy of the shop stall (same padding, min-height and
@@ -1748,21 +1773,39 @@ button.stat-chip {
   touch-action: pan-y;
 }
 
-/* player board mirrors the shop stall: proportional 5-slot layout, no scroll */
+/* Shared 5-slot unit for both battle boards. A single slot is 1/5 of the board
+   width; multi-slot wares span that many units plus the gaps between them. The
+   player board fills exactly 5 units; a lord may carry more and scroll, but each
+   ware renders at the identical size to the matching ware in the player's stall. */
+.cboard {
+  --stall-gap: 8px;
+  --slot-w: calc((100% - 4 * var(--stall-gap)) / 5);
+}
+
 #p-board.cboard .item,
-#p-board.cboard .stall-empty {
-  flex: var(--sz, 1) 1 0;
-  min-width: 0;
-  width: auto;
+#p-board.cboard .stall-empty,
+#e-board.cboard .item {
+  flex: none;
+  width: var(--slot-w);
+  min-width: var(--slot-w);
   max-width: none;
 }
 
-#p-board .item.sz1 { --sz: 1; }
-#p-board .item.sz2 { --sz: 2; }
-#p-board .item.sz3 { --sz: 3; }
+#p-board.cboard .item.sz2,
+#e-board.cboard .item.sz2 {
+  width: calc(var(--slot-w) * 2 + var(--stall-gap));
+  min-width: calc(var(--slot-w) * 2 + var(--stall-gap));
+}
+
+#p-board.cboard .item.sz3,
+#e-board.cboard .item.sz3 {
+  width: calc(var(--slot-w) * 3 + 2 * var(--stall-gap));
+  min-width: calc(var(--slot-w) * 3 + 2 * var(--stall-gap));
+}
 
 #board .item .ico,
-#p-board .item .ico {
+#p-board .item .ico,
+#e-board .item .ico {
   font-size: calc(var(--card-h) * 0.58 * var(--ware-ico-scale));
 }
 
@@ -2904,64 +2947,27 @@ button.stat-chip {
   inset: 0;
   z-index: 112;
   display: none;
+  align-items: center;
+  justify-content: center;
   pointer-events: none;
   overflow: hidden;
-  background: #080510;
+  background: #050308;
 }
 
 .shop-opening.on {
-  display: block;
+  display: flex;
   pointer-events: auto;
 }
 
-.shop-opening img {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center top;
-}
-
-.shop-opening-scrim {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    180deg,
-    rgba(8, 5, 16, 0.08) 0%,
-    rgba(8, 5, 16, 0.28) 55%,
-    rgba(8, 5, 16, 0.92) 100%
-  );
-}
-
-.shop-opening-foot {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
+.shop-opening-night {
   margin: 0;
-  padding: 18px max(20px, var(--pad-x)) calc(22px + var(--safe-b));
-  display: flex;
-  justify-content: center;
-  align-items: flex-end;
-  pointer-events: none;
-}
-
-.shop-opening-caption {
-  margin: 0;
-  padding: 14px 22px;
-  border-radius: 999px;
-  background: rgba(20, 12, 34, 0.78);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  font-family: 'Spectral', Georgia, serif;
-  font-style: italic;
-  font-size: clamp(16px, 4.5vw, 20px);
-  line-height: 1.35;
+  font-family: 'Unbounded', sans-serif;
+  font-weight: 900;
+  font-size: clamp(36px, 10vw, 52px);
+  letter-spacing: 0.08em;
   color: #fff3d6;
   text-align: center;
-  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.55);
+  text-shadow: 0 0 40px rgba(255, 200, 80, 0.25);
 }
 
 /* boss intro splash */

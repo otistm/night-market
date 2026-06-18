@@ -179,7 +179,7 @@ export function describeItem(
     const boosted = more('dmg') || more('hits') || more('crit');
     bits.push(`deal <b style="color:var(--blood)">${st.dmg}${hits} damage</b>${pierce}${crit}${up(boosted)}`);
   }
-  if (st.goldScale) bits.push(`<b style="color:var(--goldt)">+1 damage per 3 gold</b> you hold`);
+  if (st.goldScale) bits.push(`<b style="color:var(--goldt)">+1 damage per 3 gold</b> spent this night`);
   if (st.execute)
     bits.push(`bonus <b style="color:var(--blood)">+${st.execute} damage</b> to foes below 30% health${up(more('execute'))}`);
   if (st.ramp)
@@ -226,7 +226,7 @@ export function describeAdjacency(it: ItemInstance): string | null {
 
 export function nightIncome(run: RunState): number {
   const passive = run.board.reduce((acc, item) => acc + (itemStats(item).income ?? 0), 0);
-  return 6 + run.day + passive + (run.hero.bonusGold ?? 0);
+  return 5 + Math.floor(run.day / 2) + passive + (run.hero.bonusGold ?? 0);
 }
 
 export function findMergeTarget(board: ItemInstance[], it: ItemInstance): ItemInstance | undefined {

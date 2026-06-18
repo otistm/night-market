@@ -136,7 +136,7 @@ export function createCombat(run: RunState, enemy: EnemyMeta): CombatState {
     over: false,
     sudden: false,
     sdT: 0,
-    goldAtStart: run.gold,
+    goldSpent: run.goldSpentThisNight,
     p: mkSide(run.maxHp, run.board, true, run.hero),
     e: mkSide(enemy.hp, enemy.board, false, undefined, enemy.regen ?? 0, enemy.gimmick),
     enemyMeta: enemy,
@@ -253,7 +253,7 @@ function trigger(
     for (let hit = 0; hit < st.hits; hit++) {
       let dmg = st.dmg + ci.rampBonus;
       if (st.goldScale && side.isPlayer) {
-        dmg += Math.floor(combat.goldAtStart / (side.hero?.goldScaleDiv ?? 3));
+        dmg += Math.floor(combat.goldSpent / (side.hero?.goldScaleDiv ?? 3));
       }
       dmg *= weaponRampMult(side.hero, combat.t);
       if (st.execute && hit === 0 && foe.hp / foe.maxHp < 0.3) dmg += st.execute;
