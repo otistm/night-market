@@ -1,4 +1,9 @@
-import { COMBAT_SUDDEN_DEATH_AT, CURSE_DOT_MULT } from '@/config/constants';
+import {
+  BURN_DECAY,
+  COMBAT_SUDDEN_DEATH_AT,
+  CURSE_DOT_MULT,
+  ELEMENTAL_SHIELD_SOAK,
+} from '@/config/constants';
 import { BattleReportTracker } from '@/game/battle-report';
 import type {
   CombatItem,
@@ -9,7 +14,7 @@ import type {
   ItemInstance,
   RunState,
 } from '@/game/types';
-import { getItemDef, itemStats } from '@/game/economy';
+import { applyAdjBonus, getItemDef, itemStats } from '@/game/economy';
 import { weaponRampMult, arcaneSlowDamage } from '@/game/hero-passives';
 
 const reportTrackers = new WeakMap<CombatState, BattleReportTracker>();
@@ -35,8 +40,54 @@ export type CombatEvent =
   | { type: 'slow'; side: 'p' | 'e' }
   | { type: 'trigger'; side: 'p' | 'e'; itemUid: number; crit?: boolean }
   | { type: 'log'; message: string }
+  | { type: 'enrage'; side: 'p' | 'e' }
+  | { type: 'shieldwall'; side: 'p' | 'e' }
   | { type: 'sudden_death'; damage: number }
   | { type: 'end'; won: boolean };
+
+/**
+ * Resolve bespoke adjacency synergies from stall (board) order, baking the
+ * bonuses into each ware's combat stats. Passive (cd===0) wares have no
+ * CombatItem but still count as neighbours (aura sources / condition targets).
+ */
+function applyAdjacency(board: ItemInstance[], items: CombatItem[]): void {
+  if (board.length < 2) return;
+  const byUid = new Map<number, CombatItem>();
+  for (const ci of items) byUid.set(ci.it.uid, ci);
+  const defs = board.map((it) => getItemDef(it));
+  const tagsAt = (j: number): readonly string[] | null =>
+    j >= 0 && j < board.length ? defs[j].tags : null;
+
+  for (let i = 0; i < board.length; i++) {
+    const adj = defs[i].adj;
+    if (!adj) continue;
+    const lt = tagsAt(i - 1);
+    const rt = tagsAt(i + 1);
+
+    if (adj.mode === 'aura') {
+      for (const j of [i - 1, i + 1]) {
+        if (j < 0 || j >= board.length) continue;
+        if (adj.targetTag && !defs[j].tags.includes(adj.targetTag)) continue;
+        const ci = byUid.get(board[j].uid);
+        if (ci) applyAdjBonus(ci.st, adj.add, adj.cdMult);
+      }
+      continue;
+    }
+
+    const self = byUid.get(board[i].uid);
+    if (!self) continue;
+    let mult = 1;
+    if (adj.perTag) {
+      mult = (lt?.includes(adj.perTag) ? 1 : 0) + (rt?.includes(adj.perTag) ? 1 : 0);
+      if (mult === 0) continue;
+    } else if (adj.flanked) {
+      if (!(lt && rt)) continue;
+    } else if (adj.needTag) {
+      if (!(lt?.includes(adj.needTag) || rt?.includes(adj.needTag))) continue;
+    }
+    applyAdjBonus(self.st, adj.add, adj.cdMult, mult);
+  }
+}
 
 function mkSide(
   hp: number,
@@ -55,6 +106,8 @@ function mkSide(
       rampBonus: 0,
       el: null,
     }));
+
+  applyAdjacency(board, items);
 
   return {
     hp,
@@ -140,6 +193,43 @@ function gainShield(side: CombatSide, amt: number, events: CombatEvent[], key: '
   events.push({ type: 'shield', side: key, amount: amt });
 }
 
+/**
+ * Resolve one burn/poison tick on `side`. Shields blunt elemental damage
+ * (soaking up to ELEMENTAL_SHIELD_SOAK of the tick), and any hero on the
+ * attacking side with `dotLifesteal` heals from the damage that lands.
+ */
+function dotTick(
+  side: CombatSide,
+  foe: CombatSide,
+  base: number,
+  kind: 'burn' | 'poison',
+  events: CombatEvent[],
+  sideKey: 'p' | 'e',
+  foeKey: 'p' | 'e',
+  tracker: BattleReportTracker | undefined,
+): void {
+  let dmg = side.curse > 0 ? Math.round(base * CURSE_DOT_MULT) : base;
+
+  if (side.shield > 0) {
+    const absorbed = Math.min(side.shield, Math.floor(dmg * ELEMENTAL_SHIELD_SOAK));
+    if (absorbed > 0) {
+      side.shield -= absorbed;
+      dmg -= absorbed;
+      events.push({ type: 'shield', side: sideKey, amount: -absorbed });
+    }
+  }
+
+  if (dmg <= 0) return;
+
+  side.hp -= dmg;
+  events.push({ type: 'raw', side: sideKey, amount: dmg, kind });
+  tracker?.recordDotTick(foeKey, kind, dmg);
+
+  if (foe.hero?.dotLifesteal && foe.hp > 0) {
+    healSide(foe, Math.round(dmg * foe.hero.dotLifesteal), events, foeKey);
+  }
+}
+
 function trigger(
   combat: CombatState,
   side: CombatSide,
@@ -197,6 +287,21 @@ function trigger(
     if (anyCrit) {
       events[triggerIdx] = { type: 'trigger', side: sideKey, itemUid: uid, crit: true };
       events.push({ type: 'log', message: `${def.nm} strikes true!` });
+    }
+  }
+
+  if (def.consume) {
+    const stock = def.consume === 'burn' ? foe.burn : foe.poison;
+    if (stock > 0) {
+      if (def.consume === 'burn') foe.burn = 0;
+      else foe.poison = 0;
+      const dealt = dealDamage(foe, Math.round(stock), events, foeKey, false);
+      if (dealt > 0) {
+        tracker?.recordDamage(sideKey, uid, dealt);
+        if (side.hero?.dotLifesteal && side.hp > 0) {
+          healSide(side, Math.round(dealt * side.hero.dotLifesteal), events, sideKey);
+        }
+      }
     }
   }
 
@@ -270,30 +375,26 @@ export function tickCombat(combat: CombatState, dt: number): CombatEvent[] {
     side.curse = Math.max(0, side.curse - dt);
 
     // Burn is a front-loaded burst: it ticks fast (every 0.5s) but smoulders out,
-    // decaying once per second so it fades over the fight.
+    // decaying a percentage of its stack each second so high stacks fade fast.
     side.burnT += dt;
     if (side.burnT >= 0.5) {
       side.burnT -= 0.5;
       if (side.burn > 0) {
-        const dmg = side.curse > 0 ? Math.round(side.burn * CURSE_DOT_MULT) : side.burn;
-        side.hp -= dmg;
-        events.push({ type: 'raw', side: sideKey, amount: dmg, kind: 'burn' });
-        tracker?.recordDotTick(sideKey === 'e' ? 'p' : 'e', 'burn', dmg);
+        dotTick(side, foe, side.burn, 'burn', events, sideKey, foeKey, tracker);
       }
     }
 
     // Poison is the long game: it never decays, so its total damage ramps the
-    // longer the fight drags on.
+    // longer the fight drags on (tamed by lower base values + the shield soak).
     side.poisonT += dt;
     if (side.poisonT >= 1) {
       side.poisonT -= 1;
       if (side.poison > 0) {
-        const dmg = side.curse > 0 ? Math.round(side.poison * CURSE_DOT_MULT) : side.poison;
-        side.hp -= dmg;
-        events.push({ type: 'raw', side: sideKey, amount: dmg, kind: 'poison' });
-        tracker?.recordDotTick(sideKey === 'e' ? 'p' : 'e', 'poison', dmg);
+        dotTick(side, foe, side.poison, 'poison', events, sideKey, foeKey, tracker);
       }
-      if (side.burn > 0) side.burn = Math.max(0, side.burn - 1);
+      if (side.burn > 0) {
+        side.burn = Math.max(0, side.burn - Math.max(1, Math.round(side.burn * BURN_DECAY)));
+      }
     }
 
     if (side.regen > 0) {
@@ -309,6 +410,7 @@ export function tickCombat(combat: CombatState, dt: number): CombatEvent[] {
       if (side.gimmickT >= side.gimmick.every) {
         side.gimmickT -= side.gimmick.every;
         gainShield(side, side.gimmick.amount, events, sideKey);
+        events.push({ type: 'shieldwall', side: sideKey });
       }
     }
 
@@ -319,6 +421,7 @@ export function tickCombat(combat: CombatState, dt: number): CombatEvent[] {
       side.hp / side.maxHp < side.gimmick.at
     ) {
       side.enraged = true;
+      events.push({ type: 'enrage', side: sideKey });
       events.push({ type: 'log', message: side.gimmick.label ?? 'The fiend enrages!' });
     }
   }

@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { HERO_BY_ID } from '@/data/heroes';
 import type { EnemyMeta, RunState, Tier } from '@/game/types';
-import { createCombat, tickCombat, type CombatEvent } from '@/game/combat';
+import { createCombat, getBattleReportTracker, tickCombat, type CombatEvent } from '@/game/combat';
 import { createItemInstance, createRun } from '@/game/run-state';
-import { itemStats } from '@/game/economy';
+import { itemStats, statsWithAdjacency } from '@/game/economy';
 
 function makeRun(heroId: string, defIds: string[]): RunState {
   const run = createRun(HERO_BY_ID[heroId]);
@@ -170,13 +170,15 @@ describe('coin bomb', () => {
 });
 
 describe('damage-over-time identity', () => {
-  it('burn ticks twice a second and smoulders out (decays 1/sec)', () => {
+  it('burn ticks twice a second and smoulders out via percentage decay', () => {
     const combat = createCombat(makeRun('witch', []), makeEnemy(140));
     combat.e.burn = 4;
     runFor(combat, 2.2);
-    // Decays 1/sec → ~2 gone after ~2s; two ticks/sec means it front-loads damage.
-    expect(combat.e.burn).toBe(2);
-    expect(140 - combat.e.hp).toBeGreaterThanOrEqual(12);
+    // BURN_DECAY 0.4: 4 → 2 (−round(1.6)=2) at 1s, → 1 (−max(1,round(0.8)=1)) at 2s.
+    // The stack smoulders out fast (ends at 1) instead of the old flat −1/sec tail.
+    expect(combat.e.burn).toBe(1);
+    // Front-loaded burst: high early ticks, quickly fading (totals 9 over ~2.2s).
+    expect(140 - combat.e.hp).toBe(9);
   });
 
   it('poison never decays, rewarding long fights', () => {
@@ -192,8 +194,55 @@ describe('damage-over-time identity', () => {
     combat.e.poison = 4;
     combat.e.curse = 10;
     runFor(combat, 1.05);
-    // round(4 × 1.5) = 6
-    expect(combat.e.hp).toBe(134);
+    // round(4 × 1.3) = 5
+    expect(combat.e.hp).toBe(135);
+  });
+
+  it('shield soaks up to half of an elemental tick, the rest hits HP', () => {
+    const combat = createCombat(makeRun('witch', []), makeEnemy(140));
+    combat.e.poison = 4;
+    combat.e.shield = 50;
+    runFor(combat, 1.05);
+    // floor(4 × 0.5) = 2 soaked from shield, 2 bleeds to HP.
+    expect(combat.e.shield).toBe(48);
+    expect(combat.e.hp).toBe(138);
+  });
+
+  it('the Vampire heals from the burn & poison his foes suffer', () => {
+    const run = makeRun('vampire', []);
+    const combat = createCombat(run, makeEnemy(140));
+    combat.p.hp = 50;
+    combat.e.poison = 10;
+    runFor(combat, 1.05);
+    // Foe takes 10 poison; Vampire dotLifesteal 0.3 → heals round(10 × 0.3) = 3.
+    expect(combat.e.hp).toBe(130);
+    expect(combat.p.hp).toBe(53);
+  });
+});
+
+describe('consume (detonate)', () => {
+  it('deals damage equal to the foe’s poison, then clears it', () => {
+    // Plague Jar: every 5.0s deal 6, then detonate the foe's poison (12).
+    const combat = createCombat(makeRun('witch', ['plaguejar']), makeEnemy(400));
+    const uid = combat.p.items[0].it.uid;
+    combat.e.poison = 12;
+    runFor(combat, 5.1);
+    expect(combat.e.poison).toBe(0);
+    // First trigger: 6 direct + 12 detonate = 18 attributed to Plague Jar.
+    const row = getBattleReportTracker(combat)!.rows.p.get(uid)!;
+    expect(row.damage).toBe(18);
+  });
+
+  it('the Vampire’s detonate also heals via DoT lifesteal', () => {
+    // Nocturne Bell: every 5.0s deal 4, detonate poison, Vampire heals from it.
+    const run = makeRun('vampire', ['nocturnebell']);
+    const combat = createCombat(run, makeEnemy(400));
+    combat.p.hp = 50;
+    combat.e.poison = 20;
+    runFor(combat, 5.1);
+    // Detonate deals 20; Vampire dotLifesteal 0.3 → heals round(20 × 0.3) = 6 from it
+    // (plus heals from the per-second poison ticks too, so just assert it gained HP).
+    expect(combat.p.hp).toBeGreaterThan(50);
   });
 });
 
@@ -216,6 +265,86 @@ describe('regen', () => {
   });
 });
 
+describe('adjacency synergies', () => {
+  // The Witch has no damage multiplier, so base values stay clean:
+  // Iron Claws = 5, Gorge Fang = 6, Rending Maw = 4.
+  const dmgOf = (combat: ReturnType<typeof createCombat>, defId: string): number =>
+    combat.p.items.find((ci) => ci.it.defId === defId)!.st.dmg ?? 0;
+
+  it('an aura ware buffs a neighbour’s damage', () => {
+    // Pack Brand (aura +2 dmg) sits left of Iron Claws (5) → 7.
+    const combat = createCombat(makeRun('witch', ['packbrand', 'claws']), makeEnemy(140));
+    expect(dmgOf(combat, 'claws')).toBe(7);
+  });
+
+  it('a passive (cd 0) ware still counts as an aura source', () => {
+    // Pickpocket Rig never fires but its aura grants the neighbour +1 dmg.
+    const combat = createCombat(makeRun('witch', ['pickpocket', 'claws']), makeEnemy(140));
+    expect(dmgOf(combat, 'claws')).toBe(6);
+  });
+
+  it('a self+needTag ware only triggers beside the required tag', () => {
+    // Gorge Fang: +3 ramp beside a Damage ware (base ramp 2 → 5).
+    const rampOf = (combat: ReturnType<typeof createCombat>, defId: string): number =>
+      combat.p.items.find((ci) => ci.it.defId === defId)!.st.ramp;
+    const beside = createCombat(makeRun('witch', ['gorgefang', 'claws']), makeEnemy(140));
+    expect(rampOf(beside, 'gorgefang')).toBe(5);
+
+    // Sporecap is Poison, not Damage → no bonus.
+    const apart = createCombat(makeRun('witch', ['gorgefang', 'sporecap']), makeEnemy(140));
+    expect(rampOf(apart, 'gorgefang')).toBe(2);
+  });
+
+  it('an aura can grant ramp to Damage neighbours (Alpha Howl — the pack grows)', () => {
+    const rampOf = (combat: ReturnType<typeof createCombat>, defId: string): number =>
+      combat.p.items.find((ci) => ci.it.defId === defId)!.st.ramp;
+    // Alpha Howl (aura +2 ramp to Damage) beside Silvered Bone (base ramp 3) → 5.
+    const combat = createCombat(makeRun('witch', ['alphahowl', 'silverbone']), makeEnemy(140));
+    expect(rampOf(combat, 'silverbone')).toBe(5);
+  });
+
+  it('a perTag self scales with each matching neighbour (Echo Crystal go-wide)', () => {
+    // Echo Crystal: +4 dmg per adjacent Damage ware (base 8).
+    const one = createCombat(makeRun('witch', ['echocrystal', 'claws']), makeEnemy(140));
+    expect(dmgOf(one, 'echocrystal')).toBe(12);
+    const two = createCombat(makeRun('witch', ['claws', 'echocrystal', 'claws']), makeEnemy(140));
+    expect(dmgOf(two, 'echocrystal')).toBe(16);
+  });
+
+  it('a curse-granting adjacency lengthens the curse applied (Evil Eye)', () => {
+    // Evil Eye: base curse 2s, +2s beside a Poison ware → 4s.
+    const curseOf = (combat: ReturnType<typeof createCombat>, defId: string): number =>
+      combat.p.items.find((ci) => ci.it.defId === defId)!.st.curse ?? 0;
+    const beside = createCombat(makeRun('witch', ['evileye', 'cauldron']), makeEnemy(140));
+    expect(curseOf(beside, 'evileye')).toBe(4);
+    const apart = createCombat(makeRun('witch', ['evileye', 'claws']), makeEnemy(140));
+    expect(curseOf(apart, 'evileye')).toBe(2);
+  });
+
+  it('a flanked ware needs both sides occupied', () => {
+    // Rending Maw: +4 dmg when flanked (base 4).
+    const flanked = createCombat(makeRun('witch', ['claws', 'rendingmaw', 'claws']), makeEnemy(140));
+    expect(dmgOf(flanked, 'rendingmaw')).toBe(8);
+
+    const edge = createCombat(makeRun('witch', ['rendingmaw', 'claws']), makeEnemy(140));
+    expect(dmgOf(edge, 'rendingmaw')).toBe(4);
+  });
+
+  it('resolves for the enemy side too', () => {
+    // Enemy wares carry no hero, so Iron Claws stays 5; Pack Brand aura → 7.
+    const combat = createCombat(makeRun('witch', []), makeEnemy(140, [['packbrand', 0], ['claws', 0]]));
+    expect(combat.e.items.find((ci) => ci.it.defId === 'claws')!.st.dmg).toBe(7);
+  });
+
+  it('statsWithAdjacency previews the same boosted numbers the sheet shows', () => {
+    const run = makeRun('witch', ['packbrand', 'claws']);
+    // Claws (index 1) sits beside Pack Brand's +2 dmg aura → 5 + 2 = 7.
+    expect(statsWithAdjacency(run.board, 1, run.hero).dmg).toBe(7);
+    // Pack Brand itself (index 0) is unbuffed here.
+    expect(statsWithAdjacency(run.board, 0, run.hero).dmg).toBe(itemStats(run.board[0], run.hero).dmg);
+  });
+});
+
 describe('hero passives', () => {
   it('griffin grants bonus crit chance via item stats', () => {
     const run = makeRun('griffin', ['talon']);
@@ -226,7 +355,8 @@ describe('hero passives', () => {
   it('vampire boosts lifesteal fraction', () => {
     const run = makeRun('vampire', ['chalice']);
     const combat = createCombat(run, makeEnemy(140));
-    expect(combat.p.items[0].st.life).toBeCloseTo(0.75);
+    // Crimson Chalice base lifesteal 0.55 × 1.5 = 0.825.
+    expect(combat.p.items[0].st.life).toBeCloseTo(0.825);
   });
 
   it('queen boosts shields and damage', () => {

@@ -22,6 +22,11 @@ import {
   closeNewRunPrompt,
   openNewRunPrompt,
 } from '@/ui/components/new-run-prompt';
+import {
+  bindRewardOverlay,
+  isRewardChoiceOpen,
+  refreshRewardChoice,
+} from '@/ui/components/reward-choice';
 import { bindCombatBoardTap } from '@/ui/combat-board-tap';
 import { createDragDrop } from '@/ui/drag-drop';
 import { showShopOpening } from '@/ui/shop-opening';
@@ -67,14 +72,15 @@ export class NightMarketApp {
       () => this.run?.wins ?? 0,
     );
     bindNewRunPromptOverlay(closeNewRunPrompt);
+    bindRewardOverlay();
     titleIntro();
     hideDock();
 
     createDragDrop({
       getRun: () => this.run,
-      isShopActive: () => $('shop-screen').classList.contains('on'),
+      isShopActive: () => $('shop-screen').classList.contains('on') || isRewardChoiceOpen(),
       onShopChanged: () => this.refreshShop(),
-      onTapItem: (it) => this.openSheet(it),
+      onTapItem: (it, where) => this.openSheet(it, where),
       onBuyFailed: () => flashGold($('hud-gold')),
       onBuy: () => sfx.buy(),
       onSell: () => {
@@ -199,11 +205,12 @@ export class NightMarketApp {
   private refreshShop(): void {
     if (!this.run) return;
     renderShop(this.run);
+    if (isRewardChoiceOpen()) refreshRewardChoice();
   }
 
-  private openSheet(it: ItemInstance): void {
+  private openSheet(it: ItemInstance, where: 'shop' | 'board' = 'shop'): void {
     openItemSheet(it, this.run, {
-      shopMode: true,
+      shopMode: where === 'shop',
       onClose: closeItemSheet,
     });
   }

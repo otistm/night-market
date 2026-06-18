@@ -861,6 +861,41 @@ button.stat-chip {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
 }
 
+/* drag layer: ghost, dust motes and coin pops live here, above everything */
+#drag-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  pointer-events: none;
+  overflow: visible;
+}
+
+/* Emoji-rendered ware icons read a touch large next to the painted art. */
+.emoji-ico {
+  display: inline-block;
+  font-size: 0.85em;
+  line-height: 1;
+}
+
+.dust {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #fff3d6, var(--bronze) 70%, rgba(205, 141, 79, 0));
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+.coinpop {
+  position: absolute;
+  font-family: 'Unbounded', sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--goldt);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
 /* shop */
 #shop-screen {
   gap: 10px;
@@ -1341,59 +1376,117 @@ button.stat-chip {
 .shop-card.t3 { --tc: var(--diamond); --tg: rgba(142, 240, 255, 0.36); }
 .shop-card.dragging { opacity: 0.2; }
 
-#board.stall-track,
-#board.scroll-lane__track {
-  /* stay a compact, fixed-height row (not a stretching flex child) so the stall
-     sits in the exact same place — and at the same size — during battle */
+/* the stall — a fixed STALL_CAP-slot tray. Slots are a static grid backdrop;
+   wares are absolutely positioned tiles in the overlay so they glide between
+   slots on a swap or displacement instead of snapping. */
+#board.stall-tray {
   position: relative;
   flex: 0 0 auto;
   width: 100%;
   max-width: 100%;
   min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
   min-height: calc(var(--card-h) + 26px);
   padding: 12px max(12px, var(--safe-l)) 12px max(12px, var(--safe-r));
   background: rgba(0, 0, 0, 0.3);
   border-top: 1.5px dashed rgba(255, 255, 255, 0.2);
   border-bottom: 1.5px dashed rgba(255, 255, 255, 0.2);
-  border-radius: 0;
-  scroll-snap-type: none;
-  overscroll-behavior-x: contain;
-  overflow-x: hidden;
-  touch-action: pan-y;
+  touch-action: none;
+  overflow: visible;
 }
 
-#board .item {
-  scroll-snap-align: none;
-  flex: var(--sz, 1) 1 0;
-  min-width: 0;
-  width: auto;
-  max-width: none;
+#board.stall-tray .stall-slot {
+  height: var(--card-h);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: border-color 0.12s ease, background 0.12s ease, box-shadow 0.12s ease;
 }
 
-#board .item.sz1 { --sz: 1; }
-#board .item.sz2 { --sz: 2; }
-#board .item.sz3 { --sz: 3; }
-
-#board .empty-hint {
-  flex: 1 1 100%;
-  width: 100%;
+#board.stall-tray .stall-slot.ok {
+  border-style: solid;
+  border-color: var(--amber);
+  background: rgba(255, 174, 52, 0.16);
 }
 
-#board.stall-track.hot,
-#board.scroll-lane__track.hot {
+#board.stall-tray .stall-slot.bad {
+  border-style: solid;
+  border-color: var(--blood);
+  background: rgba(255, 77, 106, 0.16);
+}
+
+#board.stall-tray .stall-slot.move {
+  border-style: solid;
+  border-color: var(--frost);
+  background: rgba(108, 199, 255, 0.14);
+}
+
+#board.stall-tray .tray-items {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+#board.stall-tray .tray-items .item {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: auto;
+  touch-action: none;
+  will-change: left, top, width;
+  transition:
+    left 0.22s cubic-bezier(0.3, 1, 0.4, 1),
+    top 0.22s cubic-bezier(0.3, 1, 0.4, 1),
+    width 0.22s cubic-bezier(0.3, 1, 0.4, 1),
+    height 0.22s cubic-bezier(0.3, 1, 0.4, 1);
+}
+
+#board.stall-tray .tray-items .item.settling {
+  animation: stallSettle 0.26s cubic-bezier(0.3, 1.5, 0.5, 1);
+}
+
+/* Active adjacency synergy — amber edge so players see neighbours click. */
+#board.stall-tray .tray-items .item.synergy-active::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow:
+    0 0 0 1.5px rgba(255, 196, 96, 0.85),
+    0 0 14px rgba(255, 174, 52, 0.55);
+  animation: synergyPulse 1.8s ease-in-out infinite;
+}
+
+@keyframes synergyPulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+
+@keyframes stallSettle {
+  0% { transform: scaleY(0.84) scaleX(1.05); }
+  60% { transform: scaleY(1.04) scaleX(0.98); }
+  100% { transform: scaleY(1) scaleX(1); }
+}
+
+#board.stall-tray.hot {
   border-color: var(--amber);
   background: rgba(255, 174, 52, 0.08);
   box-shadow: 0 0 30px rgba(255, 174, 52, 0.25);
 }
 
-#board.stall-track.sell-hot,
-#board.scroll-lane__track.sell-hot {
+#board.stall-tray.sell-hot {
   border-color: var(--blood);
   background: rgba(255, 77, 106, 0.1);
   box-shadow: 0 0 26px rgba(255, 77, 106, 0.3);
 }
 
-#board.stall-track.sell-hot::before {
+#board.stall-tray.sell-hot::before {
   content: 'Release to sell';
   position: absolute;
   top: 5px;
@@ -1888,7 +1981,9 @@ button.stat-chip {
   background: linear-gradient(180deg, #ff8fa0, #d1364c);
 }
 
-/* burn — the bar smolders and licks with flame */
+/* burn — a living fire painted on a <canvas> overlay (see fx/burn-bar.ts).
+   The fiery fill below is the molten base that shows under the flames and the
+   static fallback when motion is reduced / canvas is unavailable. */
 .hpbar .hp.burning {
   background: linear-gradient(180deg, #ffd24a, #ff7a1a 48%, #d8301a) !important;
   background-size: 100% 200%;
@@ -1896,20 +1991,6 @@ button.stat-chip {
     0 0 12px rgba(255, 120, 30, 0.85),
     inset 0 0 10px rgba(255, 224, 130, 0.55);
   animation: hp-fire-glow 0.7s ease-in-out infinite alternate;
-}
-
-.hpbar .hp.burning::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background:
-    radial-gradient(58% 90% at 18% 130%, rgba(255, 226, 140, 0.95), transparent 60%),
-    radial-gradient(48% 95% at 48% 140%, rgba(255, 168, 60, 0.9), transparent 62%),
-    radial-gradient(54% 100% at 80% 130%, rgba(255, 110, 36, 0.95), transparent 60%);
-  mix-blend-mode: screen;
-  pointer-events: none;
-  animation: hp-fire-flicker 0.5s ease-in-out infinite alternate;
 }
 
 @keyframes hp-fire-glow {
@@ -1923,21 +2004,9 @@ button.stat-chip {
   }
 }
 
-@keyframes hp-fire-flicker {
-  0% {
-    transform: translateY(8%) scaleY(1);
-    opacity: 0.7;
-  }
-  50% {
-    opacity: 1;
-  }
-  100% {
-    transform: translateY(-10%) scaleY(1.12);
-    opacity: 0.55;
-  }
-}
-
-/* poison — toxic tint with bubbles rising up the bar */
+/* poison — a churning venom liquid painted on a <canvas> overlay
+   (see fx/poison-bar.ts). The green tint below is the static fallback that
+   shows under the canvas and when motion is reduced / canvas is unavailable. */
 .hpbar .hp.poisoned:not(.burning) {
   background: linear-gradient(180deg, #b6f078, #4ba62f 55%, #2d7a4e) !important;
   box-shadow:
@@ -1945,41 +2014,30 @@ button.stat-chip {
     inset 0 0 10px rgba(190, 255, 150, 0.35);
 }
 
-.hpbar .hp.poisoned::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background-image:
-    radial-gradient(circle, rgba(224, 255, 184, 0.95) 30%, transparent 32%),
-    radial-gradient(circle, rgba(196, 246, 140, 0.85) 26%, transparent 28%),
-    radial-gradient(circle, rgba(176, 240, 120, 0.9) 24%, transparent 26%),
-    radial-gradient(circle, rgba(214, 255, 178, 0.8) 20%, transparent 22%);
-  background-size: 13px 13px, 9px 9px, 17px 17px, 7px 7px;
-  background-repeat: repeat-x;
-  mix-blend-mode: screen;
-  pointer-events: none;
-  animation: hp-poison-bubble 1.7s linear infinite;
+/* The status canvases (venom liquid / fire) sit above the HP fill but below the
+   shield + text. They extend above the bar (negative top, set in JS) so the
+   wavy crest / rising mist / flames read off the surface — so the bar must not
+   clip them. */
+.hpbar:has(.poison-fx),
+.hpbar:has(.burn-fx) {
+  overflow: visible;
 }
 
-@keyframes hp-poison-bubble {
-  0% {
-    background-position: 5px 125%, 21px 125%, 38px 125%, 55px 125%;
-    opacity: 0.25;
-  }
-  50% {
-    opacity: 0.9;
-  }
-  100% {
-    background-position: 9px -45%, 26px -45%, 33px -45%, 60px -45%;
-    opacity: 0.15;
-  }
+.hpbar .poison-fx,
+.hpbar .burn-fx {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0;
 }
 
 .hpbar .sh {
   position: absolute;
   inset: 0;
   width: 0%;
+  z-index: 2;
   border-radius: 13px;
   background: linear-gradient(180deg, rgba(140, 210, 255, 0.9), rgba(70, 140, 210, 0.9));
   box-shadow: 0 0 14px rgba(108, 199, 255, 0.7);
@@ -2151,6 +2209,57 @@ button.stat-chip {
   transition: filter 0.45s ease-out;
 }
 
+/* Enrage: the boss swells and reddens — the biggest beat in a fight. */
+.fx-enrage {
+  animation: fxEnrage 0.9s ease-out;
+}
+
+@keyframes fxEnrage {
+  0% { filter: none; transform: scale(1); }
+  18% { filter: brightness(1.5) saturate(1.7) drop-shadow(0 0 28px rgba(255, 56, 78, 0.95)); transform: scale(1.09); }
+  55% { filter: brightness(1.12) saturate(1.3) drop-shadow(0 0 15px rgba(255, 56, 78, 0.6)); transform: scale(1.03); }
+  100% { filter: none; transform: scale(1); }
+}
+
+/* A red vignette pulse washes the whole arena when a fiend enrages. */
+#battle-screen.flash-enrage::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 60;
+  background: radial-gradient(ellipse at center, transparent 38%, rgba(255, 32, 54, 0.5) 100%);
+  animation: enrageFlash 0.85s ease-out forwards;
+}
+
+@keyframes enrageFlash {
+  0% { opacity: 0; }
+  14% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* Shieldwall: a frost-blue glaze sweeps the boss as a new wall snaps up. */
+.fx-frostwall {
+  animation: fxFrostwall 0.7s ease-out;
+}
+
+@keyframes fxFrostwall {
+  0% { filter: none; }
+  30% { filter: brightness(1.2) saturate(0.7) drop-shadow(0 0 24px rgba(108, 199, 255, 0.95)); }
+  100% { filter: none; }
+}
+
+/* Slow: a frost veil glazes the side whose tempo just got iced. */
+.fx-frost {
+  animation: fxFrost 0.8s ease-out;
+}
+
+@keyframes fxFrost {
+  0% { filter: none; }
+  40% { filter: saturate(0.45) brightness(1.2) hue-rotate(8deg) drop-shadow(0 0 16px rgba(140, 210, 255, 0.8)); }
+  100% { filter: none; }
+}
+
 .cboard .charged {
   box-shadow: 0 0 0 1px rgba(255, 215, 94, 0.4), 0 0 14px rgba(255, 170, 52, 0.35);
 }
@@ -2161,7 +2270,11 @@ button.stat-chip {
   .fx-sudden,
   .fx-crit,
   .fx-exec,
-  .fx-thorns {
+  .fx-thorns,
+  .fx-enrage,
+  .fx-frostwall,
+  .fx-frost,
+  #battle-screen.flash-enrage::after {
     animation: none;
   }
 }
@@ -2302,6 +2415,164 @@ button.stat-chip {
   min-width: 120px;
 }
 
+/* ── Boss reward choice ───────────────────────────────────────────── */
+.reward-overlay {
+  flex-direction: column;
+  align-items: stretch;
+  /* Anchor to the bottom so the stall stays exactly where the player's board
+     sat during the battle — only the offers appear above it. */
+  justify-content: flex-end;
+  gap: 16px;
+  padding: 24px 0 calc(var(--dock-battle-h) + var(--safe-b));
+  /* Clear everything but the stall + offers: a near-opaque night backdrop. */
+  background: radial-gradient(120% 90% at 50% 16%, #170d22 0%, #0a0610 60%, #050308 100%);
+  z-index: 121;
+}
+
+.reward-card {
+  align-self: center;
+  width: min(100%, 520px);
+  flex: 0 0 auto;
+  overscroll-behavior: contain;
+  padding: 4px max(18px, var(--pad-x)) 6px;
+  background: none;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* The offers float above the real stall; the stall keeps its native
+   #board.stall-tray look and full width, matching the shop/battle screens. */
+.reward-overlay > #board.stall-tray {
+  flex: 0 0 auto;
+  align-self: stretch;
+}
+
+.reward-kick {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--amber);
+}
+
+.reward-title {
+  margin: 4px 0 0;
+  font-family: 'Unbounded', sans-serif;
+  font-weight: 700;
+  font-size: 17px;
+  letter-spacing: 0.04em;
+  color: var(--ink);
+}
+
+/* The two ware choices + the gold option, laid out like the shop's wares. */
+.reward-choices {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.reward-wares {
+  display: flex;
+  gap: 14px;
+  justify-content: center;
+}
+
+/* Reward cards are real shop cards; show a "Reward" pill where the price sits. */
+.reward-pill {
+  display: block;
+  width: 100%;
+  padding: 9px 0;
+  font-family: 'Unbounded', sans-serif;
+  font-weight: 800;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #0c0a14;
+  background: linear-gradient(180deg, #ffe6a0, #f3b73f);
+  border-bottom-left-radius: 20px;
+  border-bottom-right-radius: 20px;
+}
+
+.reward-gold {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: clamp(100px, 26vw, 124px);
+  border-radius: 20px;
+  padding: 16px 12px;
+  background: rgba(255, 174, 52, 0.08);
+  border: 1px solid rgba(255, 196, 96, 0.4);
+  color: var(--ink);
+  cursor: pointer;
+  transition:
+    transform 0.14s ease,
+    border-color 0.14s ease,
+    background 0.14s ease,
+    box-shadow 0.14s ease;
+}
+
+.reward-gold:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 196, 96, 0.9);
+  background: rgba(255, 174, 52, 0.16);
+  box-shadow: 0 0 22px rgba(255, 174, 52, 0.3);
+}
+
+.reward-gold:active {
+  transform: scale(0.96);
+}
+
+.reward-gold-ico {
+  font-size: 34px;
+  line-height: 1;
+}
+
+.reward-gold-amt {
+  font-family: 'Unbounded', sans-serif;
+  font-weight: 900;
+  font-size: 20px;
+  color: var(--amber);
+}
+
+.reward-gold-label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+/* Capacity + sell hint live inside the panel; the stall stays pristine. */
+.reward-stall-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px 10px;
+  margin: 0;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 11.5px;
+  color: var(--dim);
+}
+
+.reward-stall-cap {
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+}
+
+.reward-stall-cap.full {
+  color: var(--blood);
+}
+
 #app.item-sheet-open #btn-reroll {
   display: none;
 }
@@ -2417,6 +2688,33 @@ button.stat-chip {
   margin: 14px 0 4px;
   font-size: 15.5px;
   line-height: 1.6;
+}
+
+.sheet .synergy {
+  margin: 10px 0 4px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 174, 52, 0.1);
+  border: 1px solid rgba(255, 174, 52, 0.32);
+  font-size: 14.5px;
+  line-height: 1.55;
+}
+
+.sheet .desc .syn-up {
+  color: var(--amber);
+  font-size: 0.82em;
+  font-weight: 700;
+  vertical-align: 0.08em;
+}
+
+.sheet .synergy .synergy-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--amber);
+  margin-bottom: 3px;
 }
 
 .sheet .flav {

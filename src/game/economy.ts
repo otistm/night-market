@@ -6,7 +6,7 @@ import {
   SCALABLE_EFFECTS,
   TIER_MULT,
 } from '@/config/constants';
-import type { HeroDef, ItemInstance, ItemStats, RunState } from '@/game/types';
+import type { AdjBonus, HeroDef, ItemInstance, ItemStats, ItemTag, RunState } from '@/game/types';
 
 export function getItemDef(it: ItemInstance) {
   return ITEM_BY_ID[it.defId];
@@ -17,6 +17,7 @@ export function usedBoardCap(board: ItemInstance[]): number {
 }
 
 export function itemPrice(it: ItemInstance, hero?: HeroDef): number {
+  if (it.free) return 0;
   const def = getItemDef(it);
   const base = Math.round(def.sz * 3 * PRICE_MULT[it.tier]);
   return Math.max(1, base - (hero?.discount ?? 0));
@@ -70,11 +71,102 @@ function round1(n: number): number {
   return Math.round(n * 10) / 10;
 }
 
-export function describeItem(it: ItemInstance, withHero: boolean, run?: RunState): string {
+/**
+ * Apply one adjacency payload onto a ware's stats (mutates `st`). Shared by the
+ * combat engine and the item sheet so previewed and fought numbers always match.
+ */
+export function applyAdjBonus(
+  st: ItemStats,
+  add: AdjBonus | undefined,
+  cdMult?: number,
+  mult = 1,
+): void {
+  if (add) {
+    if (add.dmg) st.dmg = (st.dmg ?? 0) + add.dmg * mult;
+    if (add.burn) st.burn = (st.burn ?? 0) + add.burn * mult;
+    if (add.poison) st.poison = (st.poison ?? 0) + add.poison * mult;
+    if (add.shield) st.shield = (st.shield ?? 0) + add.shield * mult;
+    if (add.heal) st.heal = (st.heal ?? 0) + add.heal * mult;
+    if (add.thorns) st.thorns += add.thorns * mult;
+    if (add.execute) st.execute += add.execute * mult;
+    if (add.haste) st.haste = (st.haste ?? 0) + add.haste * mult;
+    if (add.slow) st.slow = (st.slow ?? 0) + add.slow * mult;
+    if (add.life) st.life += add.life * mult;
+    if (add.hits) st.hits += Math.round(add.hits * mult);
+    if (add.crit) st.crit = Math.min(1, st.crit + add.crit * mult);
+    if (add.ramp) st.ramp += add.ramp * mult;
+    if (add.curse) st.curse = (st.curse ?? 0) + add.curse * mult;
+  }
+  if (cdMult) st.cd = Math.max(1, st.cd * cdMult);
+}
+
+/**
+ * Effective stats for the ware at `board[index]`, folding in the adjacency
+ * synergies that would resolve for its current left/right neighbours: its own
+ * `self` ability plus any neighbouring `aura` that targets it. Mirrors the
+ * combat engine's resolution, but focused on a single ware for the item sheet.
+ */
+export function statsWithAdjacency(
+  board: ItemInstance[],
+  index: number,
+  hero?: HeroDef,
+): ItemStats {
+  const st = itemStats(board[index], hero);
+  if (index < 0 || index >= board.length || board.length < 2) return st;
+
+  const defs = board.map((it) => getItemDef(it));
+  const myTags = defs[index].tags;
+  const tagsAt = (j: number): readonly ItemTag[] | null =>
+    j >= 0 && j < board.length ? defs[j].tags : null;
+  const lt = tagsAt(index - 1);
+  const rt = tagsAt(index + 1);
+
+  const self = defs[index].adj;
+  if (self && self.mode === 'self') {
+    let mult = 1;
+    let ok = true;
+    if (self.perTag) {
+      mult = (lt?.includes(self.perTag) ? 1 : 0) + (rt?.includes(self.perTag) ? 1 : 0);
+      ok = mult > 0;
+    } else if (self.flanked) {
+      ok = !!(lt && rt);
+    } else if (self.needTag) {
+      ok = !!(lt?.includes(self.needTag) || rt?.includes(self.needTag));
+    }
+    if (ok) applyAdjBonus(st, self.add, self.cdMult, mult);
+  }
+
+  for (const j of [index - 1, index + 1]) {
+    if (j < 0 || j >= board.length) continue;
+    const a = defs[j].adj;
+    if (a && a.mode === 'aura' && (!a.targetTag || myTags.includes(a.targetTag))) {
+      applyAdjBonus(st, a.add, a.cdMult);
+    }
+  }
+  return st;
+}
+
+/**
+ * @param effStats Effective stats to render (e.g. with adjacency folded in).
+ *   When omitted, base stats are used. Numbers that exceed the ware's base
+ *   value (or a faster cooldown) are flagged with a synergy marker.
+ */
+export function describeItem(
+  it: ItemInstance,
+  withHero: boolean,
+  run?: RunState,
+  effStats?: ItemStats,
+): string {
   const hero = withHero ? run?.hero : undefined;
   const def = getItemDef(it);
-  const st = itemStats(it, hero);
+  const base = itemStats(it, hero);
+  const st = effStats ?? base;
   const bits: string[] = [];
+
+  // A small amber arrow marking a trait currently boosted by a neighbour.
+  const up = (boosted: boolean): string =>
+    boosted ? ' <span class="syn-up" title="Boosted by a neighbouring ware">▲</span>' : '';
+  const more = (key: keyof ItemStats): boolean => (st[key] as number) > ((base[key] as number) ?? 0);
 
   if (st.income && def.cd === 0) {
     return `Earns <b style="color:var(--goldt)">+${st.income} gold</b> at the start of each night. Does nothing in battle.`;
@@ -84,34 +176,52 @@ export function describeItem(it: ItemInstance, withHero: boolean, run?: RunState
     const hits = st.hits > 1 ? ` × ${st.hits} hits` : '';
     const pierce = st.pierce ? ' (pierces shields)' : '';
     const crit = st.crit ? ` (${Math.round(st.crit * 100)}% chance to crit ×2)` : '';
-    bits.push(`deal <b style="color:var(--blood)">${st.dmg}${hits} damage</b>${pierce}${crit}`);
+    const boosted = more('dmg') || more('hits') || more('crit');
+    bits.push(`deal <b style="color:var(--blood)">${st.dmg}${hits} damage</b>${pierce}${crit}${up(boosted)}`);
   }
   if (st.goldScale) bits.push(`<b style="color:var(--goldt)">+1 damage per 3 gold</b> you hold`);
   if (st.execute)
-    bits.push(`bonus <b style="color:var(--blood)">+${st.execute} damage</b> to foes below 30% health`);
+    bits.push(`bonus <b style="color:var(--blood)">+${st.execute} damage</b> to foes below 30% health${up(more('execute'))}`);
   if (st.ramp)
-    bits.push(`permanently gains <b style="color:var(--blood)">+${st.ramp} damage</b> each time it fires`);
-  if (st.burn) bits.push(`inflict <b style="color:var(--ember)">${st.burn} burn</b>`);
-  if (st.poison) bits.push(`inflict <b style="color:var(--venom)">${st.poison} poison</b>`);
-  if (st.shield) bits.push(`gain <b style="color:var(--frost)">${st.shield} shield</b>`);
-  if (st.heal) bits.push(`restore <b style="color:#9be08a">${st.heal} health</b>`);
+    bits.push(
+      `permanently gains <b style="color:var(--blood)">+${st.ramp} damage</b> each time it fires${up(more('ramp'))}`,
+    );
+  if (st.burn) bits.push(`inflict <b style="color:var(--ember)">${st.burn} burn</b>${up(more('burn'))}`);
+  if (st.poison) bits.push(`inflict <b style="color:var(--venom)">${st.poison} poison</b>${up(more('poison'))}`);
+  if (st.shield) bits.push(`gain <b style="color:var(--frost)">${st.shield} shield</b>${up(more('shield'))}`);
+  if (st.heal) bits.push(`restore <b style="color:#9be08a">${st.heal} health</b>${up(more('heal'))}`);
   if (st.curse)
     bits.push(
-      `<b style="color:var(--venom)">curse</b> the foe ${st.curse}s (their heals & shields are halved)`,
+      `<b style="color:var(--venom)">curse</b> the foe ${st.curse}s (their heals & shields are halved)${up(more('curse'))}`,
     );
-  if (st.haste) bits.push(`<b style="color:var(--goldt)">haste</b> your other wares ${st.haste}s`);
-  if (st.slow) bits.push(`<b style="color:var(--frost)">slow</b> enemy wares ${st.slow}s`);
+  if (st.haste) bits.push(`<b style="color:var(--goldt)">haste</b> your other wares ${st.haste}s${up(more('haste'))}`);
+  if (st.slow) bits.push(`<b style="color:var(--frost)">slow</b> enemy wares ${st.slow}s${up(more('slow'))}`);
   if (st.cleanse) bits.push('cleanse your burn & poison');
-  if (st.life) bits.push(`heal for ${Math.round(st.life * 100)}% of damage dealt`);
+  if (st.life) bits.push(`heal for ${Math.round(st.life * 100)}% of damage dealt${up(more('life'))}`);
+  if (def.consume) {
+    const col = def.consume === 'burn' ? 'var(--ember)' : 'var(--venom)';
+    bits.push(
+      `<b style="color:${col}">detonate ${def.consume}</b>: deal damage equal to the foe's ${def.consume}, then clear it`,
+    );
+  }
 
-  let text = `Every <b>${st.cd.toFixed(1)}s</b>: ${bits.join('; ')}.`;
+  const fasterCd = st.cd < base.cd - 0.001;
+  let text = `Every <b>${st.cd.toFixed(1)}s</b>${up(fasterCd)}: ${bits.join('; ')}.`;
   if (st.thorns) {
-    text += ` Aura — <b style="color:var(--ember)">thorns ${st.thorns}</b>: reflects ${st.thorns} damage to attackers.`;
+    text += ` Aura — <b style="color:var(--ember)">thorns ${st.thorns}</b>${up(more('thorns'))}: reflects ${st.thorns} damage to attackers.`;
+  }
+  if (st.shield) {
+    text += ` Shields also blunt incoming <b style="color:var(--ember)">burn</b> & <b style="color:var(--venom)">poison</b>.`;
   }
   if (st.income && def.cd !== 0) {
     text += ` Also earns <b style="color:var(--goldt)">+${st.income} gold</b> each night.`;
   }
   return text;
+}
+
+/** Synergy text for the item sheet, or null if the ware has no adjacency ability. */
+export function describeAdjacency(it: ItemInstance): string | null {
+  return getItemDef(it).adj?.desc ?? null;
 }
 
 export function nightIncome(run: RunState): number {

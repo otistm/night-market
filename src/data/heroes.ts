@@ -7,8 +7,8 @@ export const HEROES: readonly HeroDef[] = [
     face: '🧙‍♀️',
     img: '/Images/The_Witch_Hagra_of_the_Bramblewood.png',
     tag: 'The Witch',
-    pass: 'Poison effects are 40% stronger.',
-    mult: { poison: 1.4 },
+    pass: 'Poison effects are 25% stronger.',
+    mult: { poison: 1.25 },
   },
   {
     id: 'vampire',
@@ -16,9 +16,10 @@ export const HEROES: readonly HeroDef[] = [
     face: '🧛',
     img: '/Images/playto_The_Vampire_Count_Mordrel.png',
     tag: 'The Vampire',
-    pass: 'Lifesteal heals 50% more.',
+    pass: 'Lifesteal heals 50% more, and you drain health from the burn and poison your foes suffer.',
     mult: {},
     lifestealMult: 1.5,
+    dotLifesteal: 0.3,
   },
   {
     id: 'werewolf',
@@ -56,8 +57,8 @@ export const HEROES: readonly HeroDef[] = [
     face: '🗿',
     img: '/Images/The_Fire_Golem_Cinderhulk.png',
     tag: 'The Fire Golem',
-    pass: 'Burn effects are 40% stronger.',
-    mult: { burn: 1.4 },
+    pass: 'Burn effects are 25% stronger.',
+    mult: { burn: 1.25 },
   },
   {
     id: 'goblin',

@@ -36,11 +36,13 @@ describe('scripted fiends', () => {
     expect(enemy.board.every((b) => b.tier === 0)).toBe(true);
   });
 
-  it('Night 5 Gravemaw wields only the Tombstone Bulwark', () => {
+  it('Night 5 Gravemaw tanks behind the Tombstone but now bites back', () => {
     const enemy = buildEnemy(runAtDay(5));
     expect(enemy.nm).toBe('Gravemaw');
     expect(enemy.hp).toBe(140);
-    expect(enemy.board.map((b) => b.defId)).toEqual(['tombstone']);
+    // The ward tank keeps its Tombstone but gains real offence so the long
+    // fight actually costs the player HP.
+    expect(enemy.board.map((b) => b.defId)).toEqual(['tombstone', 'furnaceheart', 'claws']);
   });
 
   it('Night 10 is Moloch with 300 HP', () => {
@@ -74,12 +76,12 @@ describe('boss retry scaling', () => {
   });
 
   it('does not roughly double the boss: only the primary ware gains a single tier', () => {
-    // Bog Hag: [cauldron t1 (primary), hexpin t1, toadstool t0].
+    // Bog Hag: [cauldron t1 (primary), hexpin t1, cursedoll t0, toadstool t1].
     const enemy = buildEnemy(runAtDay(3, RETRY_TIER_AT));
     expect(enemy.board[0].defId).toBe('cauldron');
     expect(enemy.board[0].tier).toBe(2); // primary +1
     expect(enemy.board.find((b) => b.defId === 'hexpin')?.tier).toBe(1); // unchanged
-    expect(enemy.board.find((b) => b.defId === 'toadstool')?.tier).toBe(0); // unchanged
+    expect(enemy.board.find((b) => b.defId === 'toadstool')?.tier).toBe(1); // unchanged
   });
 
   it('leaves ware tiers untouched before the retry-tier threshold', () => {
@@ -90,7 +92,7 @@ describe('boss retry scaling', () => {
   it('does not advance to the next Lord until the run day increases', () => {
     const run = runAtDay(2, 3);
     expect(getFiendForRun(run).nm).toBe('The Hollow Mourner');
-    expect(buildEnemy(run).hp).toBe(Math.round(95 * (1 + RETRY_HP_PCT * 3)));
+    expect(buildEnemy(run).hp).toBe(Math.round(100 * (1 + RETRY_HP_PCT * 3)));
   });
 
   it('caps the primary ware at 4 stars', () => {

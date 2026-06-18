@@ -1,6 +1,12 @@
 import { TIER_COLORS } from '@/config/constants';
 import type { ItemInstance, RunState } from '@/game/types';
-import { describeItem, getItemDef, itemStats } from '@/game/economy';
+import {
+  describeAdjacency,
+  describeItem,
+  getItemDef,
+  itemStats,
+  statsWithAdjacency,
+} from '@/game/economy';
 import { animateSheet } from '@/fx/animations';
 import { $ } from '@/ui/dom';
 import { itemIconHtml } from '@/ui/item-icon';
@@ -85,9 +91,15 @@ export function openItemSheet(
   setItemSheetLock(true);
 
   const { shopMode = false, onClose } = options;
-  const mine = shopMode || (run?.board.some((b) => b.uid === it.uid) ?? false);
+  const boardIdx = run?.board.findIndex((b) => b.uid === it.uid) ?? -1;
+  const mine = shopMode || boardIdx >= 0;
   const def = getItemDef(it);
-  const st = itemStats(it, mine ? run?.hero : undefined);
+  // On the stall, show numbers with the ware's current adjacency folded in.
+  const st =
+    boardIdx >= 0 && run
+      ? statsWithAdjacency(run.board, boardIdx, run.hero)
+      : itemStats(it, mine ? run?.hero : undefined);
+  const synergy = describeAdjacency(it);
   const sheet = $('item-sheet');
 
   const actions = `<div class="actions"><button class="btn ghost" data-action="close">Close</button></div>`;
@@ -103,7 +115,8 @@ export function openItemSheet(
     </div>
     <div class="sheet-body">
       <div class="item-tags">${def.tags.map((t) => `<span class="tag-pill">${t}</span>`).join('')}</div>
-      <div class="desc">${describeItem(it, mine, run ?? undefined)}</div>
+      <div class="desc">${describeItem(it, mine, run ?? undefined, st)}</div>
+      ${synergy ? `<div class="synergy"><span class="synergy-label">Synergy</span>${synergy}</div>` : ''}
       <div class="stats">
         <span class="chip">size ${def.sz} slot${def.sz > 1 ? 's' : ''}</span>
         ${def.cd > 0 ? `<span class="chip">⏱ ${st.cd.toFixed(1)}s</span>` : ''}

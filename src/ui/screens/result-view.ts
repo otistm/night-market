@@ -4,6 +4,7 @@ import { nightIncome } from '@/game/economy';
 import { romans } from '@/utils/romans';
 import { animateResultReveal, countUp } from '@/fx/animations';
 import { openBattleReport, closeBattleReport } from '@/ui/components/battle-report-sheet';
+import { openRewardChoice } from '@/ui/components/reward-choice';
 import { showLordsGallery } from '@/ui/lords-gallery';
 import { $ } from '@/ui/dom';
 
@@ -130,7 +131,10 @@ export function showResultScreen(
     } else if (runLost) {
       proceedRunEnd();
     } else if (won) {
-      showLordsGallery(run.wins, proceedNight, { autoDismiss: true });
+      openRewardChoice({
+        run,
+        onDone: () => showLordsGallery(run.wins, proceedNight, { autoDismiss: true }),
+      });
     } else {
       proceedRetry();
     }

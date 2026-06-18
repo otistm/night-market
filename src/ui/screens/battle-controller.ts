@@ -14,6 +14,8 @@ import {
 } from '@/fx/animations';
 import { createDamagePop, type FxSystem } from '@/fx/particles';
 import { animateDamagePop, shakeApp } from '@/fx/animations';
+import { pulsePoisonBar, updatePoisonBar } from '@/fx/poison-bar';
+import { pulseBurnBar, updateBurnBar } from '@/fx/burn-bar';
 import { sfx } from '@/fx/sfx';
 import { closeItemSheet, openItemSheet } from '@/ui/components/item-sheet';
 import { showDockBattle } from '@/ui/player-dock';
@@ -53,6 +55,12 @@ export function createBattleController(
 
     hpEl.classList.toggle('burning', s.burn > 0);
     hpEl.classList.toggle('poisoned', s.poison > 0);
+    if (hpEl.parentElement) {
+      // Burn takes visual precedence over poison (mirrors the CSS rule), so a
+      // doubly-afflicted fighter shows fire rather than two clashing overlays.
+      updateBurnBar(hpEl.parentElement, hpPct / 100, s.burn);
+      updatePoisonBar(hpEl.parentElement, hpPct / 100, s.burn > 0 ? 0 : s.poison);
+    }
 
     $(key + '-hpt').textContent =
       `${Math.max(0, Math.ceil(s.hp))}${s.shield > 0 ? ` +${Math.round(s.shield)}` : ''}`;
@@ -115,12 +123,21 @@ export function createBattleController(
             void face.offsetWidth;
             face.classList.add('fx-thorns');
           } else if (ev.kind === 'burn') {
-            const pop = createDamagePop(appEl, face, `-${ev.amount}`, 'var(--ember)', 13);
+            // Bigger stacks pop bigger, so a melting foe *reads* as melting.
+            const sz = Math.min(30, 12 + ev.amount * 0.7);
+            const pop = createDamagePop(appEl, face, `-${ev.amount}`, 'var(--ember)', sz);
             animateDamagePop(pop, () => {}, run.speed);
+            if (ev.amount >= 14) fx.burst(face, '#ff8a3d', 10);
+            const burnHost = $(ev.side + '-hp').parentElement;
+            if (burnHost) pulseBurnBar(burnHost);
             sfx.burn();
           } else if (ev.kind === 'poison') {
-            const pop = createDamagePop(appEl, face, `-${ev.amount}`, 'var(--venom)', 13);
+            const sz = Math.min(30, 12 + ev.amount * 0.7);
+            const pop = createDamagePop(appEl, face, `-${ev.amount}`, 'var(--venom)', sz);
             animateDamagePop(pop, () => {}, run.speed);
+            if (ev.amount >= 14) fx.burst(face, '#7ee06a', 10);
+            const hpHost = $(ev.side + '-hp').parentElement;
+            if (hpHost) pulsePoisonBar(hpHost);
             sfx.poison();
           }
           break;
@@ -206,10 +223,38 @@ export function createBattleController(
         }
         case 'slow': {
           const board = $(ev.side + '-board');
-          fx.burst(board, '#6cc7ff', 14);
+          fx.burst(board, '#6cc7ff', 18);
           board.classList.remove('fx-slow');
           void board.offsetWidth;
           board.classList.add('fx-slow');
+          // A frost veil sweeps the slowed side's wares so the tempo loss reads.
+          const veil = $(ev.side + '-face');
+          veil.classList.remove('fx-frost');
+          void veil.offsetWidth;
+          veil.classList.add('fx-frost');
+          break;
+        }
+        case 'shieldwall': {
+          const face = $(ev.side + '-face');
+          fx.burst(face, '#6cc7ff', 22);
+          face.classList.remove('fx-frostwall');
+          void face.offsetWidth;
+          face.classList.add('fx-frostwall');
+          sfx.shield();
+          break;
+        }
+        case 'enrage': {
+          const face = $(ev.side + '-face');
+          face.classList.remove('fx-enrage');
+          void face.offsetWidth;
+          face.classList.add('fx-enrage');
+          fx.burst(face, '#ff4d6a', 30);
+          shakeApp(13);
+          bg.pulse();
+          vibrate([30, 20, 40]);
+          $('battle-screen').classList.remove('flash-enrage');
+          void $('battle-screen').offsetWidth;
+          $('battle-screen').classList.add('flash-enrage');
           break;
         }
         case 'log': {

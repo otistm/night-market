@@ -21,8 +21,27 @@ export const SCALABLE_EFFECTS: readonly (keyof import('@/game/types').ItemEffect
 
 export const COMBAT_SUDDEN_DEATH_AT = 30;
 
+/** Lump-sum gold offered as a boss-defeat reward, scaling with the night. */
+export function bossBounty(day: number): number {
+  return 6 + day * 2;
+}
+
 /** A cursed side takes amplified burn & poison ticks (curse ↔ DoT synergy). */
-export const CURSE_DOT_MULT = 1.5;
+export const CURSE_DOT_MULT = 1.3;
+
+/**
+ * Shields are an investable counter to elemental damage: each burn/poison tick
+ * can be soaked by shield up to this fraction (the remainder always bleeds
+ * through to HP, so DoT is mitigated, never hard-countered).
+ */
+export const ELEMENTAL_SHIELD_SOAK = 0.5;
+
+/**
+ * Burn is a front-loaded burst that smoulders out: each second it loses this
+ * fraction of its stack (min 1), so high stacks fade fast instead of carrying a
+ * long super-linear tail.
+ */
+export const BURN_DECAY = 0.4;
 
 /** Gentle additive per-tier scaling for tempo effects that don't use TIER_MULT. */
 export const HASTE_SLOW_TIER_STEP = 0.15;

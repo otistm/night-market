@@ -1,38 +1,53 @@
 import gsap from 'gsap';
+import { STALL_CAP } from '@/config/constants';
 import type { ItemInstance, RunState } from '@/game/types';
-import { canDropOnBoard, buyItem, sellItem } from '@/game/shop-actions';
-import { findMergeTarget, getItemDef, itemPrice, sellValue } from '@/game/economy';
+import { buyItem, mergeBoardItems, sellItem } from '@/game/shop-actions';
+import { getItemDef, itemPrice, sellValue, usedBoardCap } from '@/game/economy';
+import {
+  measureStallSlots,
+  nearestStartSlot,
+  packedStarts,
+  renderStall,
+  stallSlotSpan,
+} from '@/ui/components/cards';
 import { reduceMotion } from '@/fx/animations';
 import { isItemSheetOpen } from '@/ui/components/item-sheet';
-import { hit, vibrate, $ } from '@/ui/dom';
+import { itemIconHtml } from '@/ui/item-icon';
+import { tierStarHtml } from '@/ui/tier-star';
+import { vibrate, $ } from '@/ui/dom';
 import { clamp } from '@/utils/math';
 
 const DRAG_THRESHOLD = 8;
-const SELL_LIFT_PX = 42;
 const FOLLOW = 0.42;
+
+type Plan = { kind: 'merge'; targetUid: number } | { kind: 'place'; insertIdx: number };
 
 interface Drag {
   it: ItemInstance;
+  size: number;
   where: 'shop' | 'board';
   source: HTMLElement;
   ghost: HTMLElement | null;
-  placeholder: HTMLElement | null;
-  mergeEl: HTMLElement | null;
   pointerId: number;
   sx: number;
   sy: number;
-  ox: number;
-  oy: number;
-  w: number;
-  h: number;
+  grabDX: number;
+  grabDY: number;
+  tileH: number;
+  originStart: number;
   moved: boolean;
   decided: boolean;
   selling: boolean;
+  valid: boolean;
+  target: number;
+  plan: Plan | null;
   px: number;
   py: number;
   tx: number;
   ty: number;
   vx: number;
+  tilt: number;
+  lifted: boolean;
   raf: number;
 }
 
@@ -51,138 +66,128 @@ export function createDragDrop(callbacks: DragDropCallbacks): { destroy(): void 
   let drag: Drag | null = null;
 
   const board = (): HTMLElement => $('board');
-  const realItems = (): HTMLElement[] => [...board().querySelectorAll<HTMLElement>('.item:not(.dragging)')];
-  const allItems = (): HTMLElement[] => [...board().querySelectorAll<HTMLElement>('.item')];
-  const empties = (): HTMLElement[] => [...board().querySelectorAll<HTMLElement>('.stall-empty')];
-  const firstEmpty = (): HTMLElement | null => empties()[0] ?? null;
-  const lastEmpty = (): HTMLElement | null => {
-    const e = empties();
-    return e[e.length - 1] ?? null;
-  };
 
-  /** First real ware whose midpoint sits to the right of x (i.e. insert before it). */
-  function refBeforeAt(x: number): HTMLElement | null {
-    for (const el of realItems()) {
-      const r = el.getBoundingClientRect();
-      if (x < r.left + r.width / 2) return el;
+  const layer = document.createElement('div');
+  layer.id = 'drag-layer';
+  document.body.appendChild(layer);
+
+  /* ------------------------------------------------------------------ *
+   * geometry / planning
+   * ------------------------------------------------------------------ */
+
+  function otherItems(run: RunState, d: Drag): ItemInstance[] {
+    return d.where === 'board' ? run.board.filter((b) => b.uid !== d.it.uid) : run.board;
+  }
+
+  function itemAtSlot(items: ItemInstance[], starts: number[], slot: number): ItemInstance | null {
+    for (let k = 0; k < items.length; k++) {
+      const st = starts[k];
+      if (slot >= st && slot < st + getItemDef(items[k]).sz) return items[k];
     }
     return null;
   }
 
-  function findItem(run: RunState, uid: number, where: 'shop' | 'board'): ItemInstance | undefined {
-    const list = where === 'shop' ? run.shop : run.board;
-    return list.find((x) => x?.uid === uid) ?? undefined;
+  function canMerge(a: ItemInstance, b: ItemInstance): boolean {
+    return a.uid !== b.uid && a.defId === b.defId && a.tier === b.tier && a.tier < 3;
   }
 
-  /**
-   * Record board children rects, run a DOM mutation, then animate each surviving
-   * child from its previous position to its new one (FLIP). The stall keeps a
-   * constant slot count during a drag, so positions shift but widths do not —
-   * giving a clean, undistorted "open a gap" reflow.
-   */
-  function flip(mutate: () => void): void {
-    if (reduceMotion) {
-      mutate();
+  /** Evaluate where the ghost would land and stamp the slot hints. */
+  function evaluate(d: Drag, run: RunState, ghostLeftClient: number): void {
+    const b = board();
+    const geo = measureStallSlots(b);
+    clearSlotHints(b);
+    b.querySelector('.item.merge-target')?.classList.remove('merge-target');
+    if (!geo.length) {
+      d.valid = false;
+      d.plan = null;
+      d.target = -1;
       return;
     }
-    const kids = [...board().children] as HTMLElement[];
-    const before = kids.map((k) => k.getBoundingClientRect());
-    mutate();
-    kids.forEach((k, i) => {
-      if (!k.isConnected || k.parentElement !== board()) return;
-      const a = before[i];
-      const b = k.getBoundingClientRect();
-      const dx = a.left - b.left;
-      const dy = a.top - b.top;
-      if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return;
-      gsap.fromTo(
-        k,
-        { x: dx, y: dy },
-        { x: 0, y: 0, duration: 0.26, ease: 'power3.out', overwrite: true, clearProps: 'transform' },
-      );
-    });
-  }
 
-  function makePlaceholder(d: Drag): HTMLElement {
-    const def = getItemDef(d.it);
-    const ph = document.createElement('div');
-    ph.className = `item sz${def.sz} t${d.it.tier} dragging drag-placeholder`;
-    ph.dataset.where = 'board';
-    ph.dataset.uid = String(d.it.uid);
-    return ph;
-  }
+    const overlay = b.querySelector<HTMLElement>('.tray-items')!;
+    const relLeft = ghostLeftClient - overlay.getBoundingClientRect().left;
+    const start = nearestStartSlot(geo, relLeft, d.size);
+    const span = stallSlotSpan(geo, start, d.size);
+    const centerRel = relLeft + span.width / 2;
 
-  /** Insert (or move) the gap placeholder so it lands where x points. */
-  function placeAt(d: Drag, x: number): void {
-    const ph = d.placeholder;
-    if (!ph) return;
-    const ref = refBeforeAt(x);
-    const target = ref ?? firstEmpty();
-    if (target === ph || ph.nextSibling === target) return;
-    flip(() => board().insertBefore(ph, target ?? null));
-  }
+    const others = otherItems(run, d);
+    const starts = packedStarts(others);
 
-  /** Create a gap for a shop ware, consuming trailing empties to keep slot count. */
-  function createPlaceholderAt(d: Drag, x: number): void {
-    const def = getItemDef(d.it);
-    const ph = makePlaceholder(d);
-    d.placeholder = ph;
-    const ref = refBeforeAt(x);
-    flip(() => {
-      for (let i = 0; i < def.sz; i++) lastEmpty()?.remove();
-      board().insertBefore(ph, ref ?? firstEmpty() ?? null);
-    });
-  }
-
-  /** Remove a shop ware's gap and restore the empty slots it borrowed. */
-  function removePlaceholder(d: Drag): void {
-    if (!d.placeholder || d.where !== 'shop') return;
-    const def = getItemDef(d.it);
-    const ph = d.placeholder;
-    d.placeholder = null;
-    flip(() => {
-      ph.remove();
-      for (let i = 0; i < def.sz; i++) {
-        const e = document.createElement('div');
-        e.className = 'stall-empty';
-        e.setAttribute('aria-hidden', 'true');
-        board().appendChild(e);
+    // merge takes precedence: is the ghost centred over a matching ware?
+    let centerSlot = start;
+    let bestD = Infinity;
+    for (let s = 0; s < geo.length; s++) {
+      const dd = Math.abs(centerRel - (geo[s].left + geo[s].width / 2));
+      if (dd < bestD) {
+        bestD = dd;
+        centerSlot = s;
       }
+    }
+    const under = itemAtSlot(others, starts, centerSlot);
+    if (under && canMerge(d.it, under)) {
+      d.plan = { kind: 'merge', targetUid: under.uid };
+      d.target = start;
+      d.valid = true;
+      markMergeTarget(b, under.uid);
+      return;
+    }
+
+    // plain placement / displacement
+    const fits = d.where === 'board' || usedBoardCap(run.board) + d.size <= STALL_CAP;
+    let insertIdx = 0;
+    for (const st of starts) if (st < start) insertIdx++;
+    d.plan = fits ? { kind: 'place', insertIdx } : null;
+    d.target = start;
+    d.valid = fits;
+
+    const slots = [...b.querySelectorAll<HTMLElement>('.stall-slot')];
+    if (!fits) {
+      for (let i = start; i < start + d.size && i < slots.length; i++) slots[i]?.classList.add('bad');
+      return;
+    }
+    for (let i = start; i < start + d.size; i++) slots[i]?.classList.add('ok');
+
+    // preview where displaced wares will slide
+    const sim = others.slice();
+    sim.splice(insertIdx, 0, d.it);
+    const simStarts = packedStarts(sim);
+    others.forEach((o, k) => {
+      const simIdx = sim.indexOf(o);
+      if (simStarts[simIdx] === starts[k]) return;
+      const ns = simStarts[simIdx];
+      for (let i = ns; i < ns + getItemDef(o).sz; i++) slots[i]?.classList.add('move');
     });
   }
 
-  function showMergeTarget(d: Drag, mt: ItemInstance): void {
-    const el = board().querySelector<HTMLElement>(`.item[data-uid="${mt.uid}"]`);
-    if (el === d.mergeEl) return;
-    clearMergeTarget(d);
-    if (el) {
-      el.classList.add('merge-target');
-      d.mergeEl = el;
-    }
+  function clearSlotHints(b: HTMLElement): void {
+    b.querySelectorAll('.stall-slot.ok, .stall-slot.bad, .stall-slot.move').forEach((s) =>
+      s.classList.remove('ok', 'bad', 'move'),
+    );
   }
 
-  function clearMergeTarget(d: Drag): void {
-    d.mergeEl?.classList.remove('merge-target');
-    d.mergeEl = null;
+  function markMergeTarget(b: HTMLElement, uid: number): void {
+    const el = b.querySelector<HTMLElement>(`.tray-items .item[data-uid="${uid}"]`);
+    el?.classList.add('merge-target');
   }
 
-  function isSellGesture(d: Drag, x: number, y: number): boolean {
-    if (d.where !== 'board') return false;
+  function overTray(x: number, y: number): boolean {
     const r = board().getBoundingClientRect();
-    if (y < r.top - 8) return true;
-    return y - d.sy < -SELL_LIFT_PX && !hit(board(), x, y);
+    return x > r.left - 26 && x < r.right + 26 && y > r.top - 32 && y < r.bottom + 32;
   }
 
-  function ensureSellBadge(d: Drag): void {
-    if (!d.ghost || d.ghost.querySelector('.ghost-sell')) return;
-    const b = document.createElement('div');
-    b.className = 'ghost-sell';
-    b.textContent = `Sell +${sellValue(d.it)}`;
-    d.ghost.appendChild(b);
-  }
+  /* ------------------------------------------------------------------ *
+   * ghost
+   * ------------------------------------------------------------------ */
 
-  function removeSellBadge(d: Drag): void {
-    d.ghost?.querySelector('.ghost-sell')?.remove();
+  function makeGhost(it: ItemInstance, w: number, h: number): HTMLElement {
+    const def = getItemDef(it);
+    const g = document.createElement('div');
+    g.className = `item sz${def.sz} t${it.tier} drag-clone lifting`;
+    g.style.width = `${w}px`;
+    g.style.height = `${h}px`;
+    g.innerHTML = `${tierStarHtml(it.tier)}<span class="ico">${itemIconHtml(def.ico, def.nm)}</span>`;
+    layer.appendChild(g);
+    return g;
   }
 
   function startFollow(d: Drag): void {
@@ -192,55 +197,86 @@ export function createDragDrop(callbacks: DragDropCallbacks): { destroy(): void 
       d.py += (d.ty - d.py) * f;
       const lead = d.tx - d.px;
       d.vx = d.vx * 0.8 + lead * 0.2;
-      const tilt = reduceMotion ? 0 : clamp(d.vx * 0.12, -12, 12);
-      if (d.ghost) gsap.set(d.ghost, { x: d.px, y: d.py, rotation: tilt });
+      const targetTilt = reduceMotion ? 0 : clamp(d.vx * 0.16, -10, 10);
+      d.tilt += (targetTilt - d.tilt) * 0.25;
+      const lift = d.lifted ? 1.07 : 1;
+      if (d.ghost) gsap.set(d.ghost, { x: d.px, y: d.py, rotation: d.tilt, scale: lift });
       d.raf = requestAnimationFrame(step);
     };
     d.raf = requestAnimationFrame(step);
   }
 
-  function beginDrag(d: Drag): void {
+  /* ------------------------------------------------------------------ *
+   * begin drag
+   * ------------------------------------------------------------------ */
+
+  function beginDrag(d: Drag, x: number, y: number): void {
     d.moved = true;
-    d.source.classList.add('dragging');
-
-    const ghost = d.source.cloneNode(true) as HTMLElement;
-    ghost.classList.add('drag-clone', 'lifting');
-    ghost.classList.remove('dragging', 'drag-placeholder');
-    ghost.style.width = `${d.w}px`;
-    ghost.style.height = `${d.h}px`;
-    document.body.appendChild(ghost);
-    d.ghost = ghost;
-
-    d.px = d.tx = d.sx - d.ox;
-    d.py = d.ty = d.sy - d.oy;
-    gsap.set(ghost, { x: d.px, y: d.py, scale: 1, rotation: 0 });
-    if (!reduceMotion) {
-      gsap.fromTo(ghost, { scale: 1 }, { scale: 1.08, duration: 0.16, ease: 'back.out(2.2)' });
-    }
+    const b = board();
+    const geo = measureStallSlots(b);
+    const trayW = stallSlotSpan(geo, 0, d.size).width;
+    const trayH = geo.length ? geo[0].height : d.tileH;
+    const r = d.source.getBoundingClientRect();
 
     if (d.where === 'board') {
-      d.source.classList.add('drag-placeholder');
-      d.placeholder = d.source;
+      // lift the real tile out — others stay put (absolute), the ghost carries it
+      d.grabDX = x - r.left;
+      d.grabDY = y - r.top;
+      d.ghost = makeGhost(d.it, r.width, r.height);
+      d.source.remove();
+    } else {
+      d.source.classList.add('dragging');
+      d.grabDX = ((x - r.left) / r.width) * trayW;
+      d.grabDY = ((y - r.top) / r.height) * trayH;
+      d.ghost = makeGhost(d.it, r.width, r.height);
+      // morph from shop-card size to tray-tile size as it lifts
+      requestAnimationFrame(() => {
+        if (!d.ghost) return;
+        d.ghost.style.transition = 'width .16s ease, height .16s ease';
+        d.ghost.style.width = `${trayW}px`;
+        d.ghost.style.height = `${trayH}px`;
+      });
     }
+    d.tileH = trayH;
+
+    d.px = d.tx = x - d.grabDX;
+    d.py = d.ty = y - d.grabDY;
+    gsap.set(d.ghost, { x: d.px, y: d.py, scale: 1, rotation: 0 });
+    requestAnimationFrame(() => {
+      d.lifted = true;
+    });
 
     try {
-      d.source.setPointerCapture(d.pointerId);
+      $('shop-screen').setPointerCapture(d.pointerId);
     } catch {
-      /* pointer may already be captured/released */
+      /* capture is best-effort */
     }
     vibrate(12);
     startFollow(d);
   }
 
-  function updatePreview(d: Drag, x: number, y: number, run: RunState): void {
-    const b = board();
+  /* ------------------------------------------------------------------ *
+   * move
+   * ------------------------------------------------------------------ */
 
-    if (isSellGesture(d, x, y)) {
-      d.selling = true;
+  function moveDrag(d: Drag, x: number, y: number, run: RunState): void {
+    d.tx = x - d.grabDX;
+    d.ty = y - d.grabDY;
+
+    const b = board();
+    if (!overTray(x, y)) {
+      d.target = -1;
+      d.plan = null;
+      d.valid = false;
+      clearSlotHints(b);
+      b.querySelector('.item.merge-target')?.classList.remove('merge-target');
       b.classList.remove('hot');
-      b.classList.add('sell-hot');
-      d.ghost?.classList.add('selling');
-      ensureSellBadge(d);
+      const sellable = d.where === 'board';
+      d.selling = sellable;
+      b.classList.toggle('sell-hot', sellable);
+      d.ghost?.classList.toggle('selling', sellable);
+      if (sellable) ensureSellBadge(d);
+      else removeSellBadge(d);
       return;
     }
 
@@ -250,79 +286,64 @@ export function createDragDrop(callbacks: DragDropCallbacks): { destroy(): void 
       d.ghost?.classList.remove('selling');
       removeSellBadge(d);
     }
-
-    if (d.where === 'board') {
-      b.classList.add('hot');
-      placeAt(d, x);
-      return;
-    }
-
-    if (hit(b, x, y) && canDropOnBoard(run, d.it, 'shop')) {
-      b.classList.add('hot');
-      const mt = findMergeTarget(run.board, d.it);
-      if (mt) {
-        removePlaceholder(d);
-        showMergeTarget(d, mt);
-      } else {
-        clearMergeTarget(d);
-        if (d.placeholder) placeAt(d, x);
-        else createPlaceholderAt(d, x);
-      }
-    } else {
-      b.classList.remove('hot');
-      clearMergeTarget(d);
-      removePlaceholder(d);
-    }
+    evaluate(d, run, d.tx);
+    b.classList.toggle('hot', d.valid && d.plan?.kind === 'place');
   }
 
-  function settleGhost(ghost: HTMLElement | null, rect: DOMRect | undefined, done: () => void): void {
-    if (!ghost || !rect || reduceMotion) {
+  function ensureSellBadge(d: Drag): void {
+    if (!d.ghost || d.ghost.querySelector('.ghost-sell')) return;
+    const tag = document.createElement('div');
+    tag.className = 'ghost-sell';
+    tag.textContent = `Sell +${sellValue(d.it)}`;
+    d.ghost.appendChild(tag);
+  }
+
+  function removeSellBadge(d: Drag): void {
+    d.ghost?.querySelector('.ghost-sell')?.remove();
+  }
+
+  /* ------------------------------------------------------------------ *
+   * drop
+   * ------------------------------------------------------------------ */
+
+  function destSpanClient(start: number, size: number): { x: number; y: number; w: number; h: number } {
+    const b = board();
+    const geo = measureStallSlots(b);
+    const overlay = b.querySelector<HTMLElement>('.tray-items')!;
+    const base = overlay.getBoundingClientRect();
+    const span = stallSlotSpan(geo, start, size);
+    return { x: base.left + span.left, y: base.top + span.top, w: span.width, h: span.height };
+  }
+
+  function settleGhostTo(
+    d: Drag,
+    dest: { x: number; y: number; w: number; h: number },
+    done: () => void,
+  ): void {
+    const g = d.ghost;
+    if (!g || reduceMotion) {
       done();
       return;
     }
-    const w = ghost.offsetWidth || 1;
-    const h = ghost.offsetHeight || 1;
-    const cx = rect.left + rect.width / 2;
-    const cy = rect.top + rect.height / 2;
-    gsap.to(ghost, {
-      x: cx - w / 2,
-      y: cy - h / 2,
-      scale: rect.width / w,
+    g.classList.remove('lifting');
+    g.style.transition = '';
+    gsap.to(g, {
+      x: dest.x,
+      y: dest.y,
       rotation: 0,
+      scale: 1,
+      width: dest.w,
+      height: dest.h,
       duration: 0.2,
       ease: 'power3.out',
       onComplete: done,
     });
   }
 
-  function tossGhost(ghost: HTMLElement | null, done: () => void): void {
-    if (!ghost || reduceMotion) {
-      done();
-      return;
-    }
-    gsap.to(ghost, {
-      y: '+=120',
-      scale: 0.42,
-      opacity: 0,
-      rotation: 0,
-      duration: 0.26,
-      ease: 'power2.in',
-      onComplete: done,
-    });
-  }
-
-  function cleanup(d: Drag): void {
-    d.ghost?.remove();
-    d.ghost = null;
-    d.source.classList.remove('dragging', 'drag-placeholder');
-    clearMergeTarget(d);
-    board().classList.remove('hot', 'sell-hot');
-  }
-
-  function endDrag(d: Drag, e: PointerEvent): void {
+  function endDrag(d: Drag, x: number, y: number): void {
     cancelAnimationFrame(d.raf);
     try {
-      d.source.releasePointerCapture(d.pointerId);
+      $('shop-screen').releasePointerCapture(d.pointerId);
     } catch {
       /* already released */
     }
@@ -333,81 +354,153 @@ export function createDragDrop(callbacks: DragDropCallbacks): { destroy(): void 
       return;
     }
 
-    board().classList.remove('hot', 'sell-hot');
-
     const run = callbacks.getRun();
+    const b = board();
+    b.classList.remove('hot', 'sell-hot');
+    clearSlotHints(b);
+    b.querySelector('.item.merge-target')?.classList.remove('merge-target');
+
     if (!run) {
-      cleanup(d);
-      callbacks.onShopChanged();
+      finishAndRefresh(d);
       return;
     }
 
-    const finish = (commit?: () => void): void => {
-      commit?.();
-      callbacks.onShopChanged();
-      cleanup(d);
-    };
-
-    if (d.where === 'board' && d.selling) {
-      vibrate([10, 30]);
-      tossGhost(d.ghost, () =>
-        finish(() => {
-          if (sellItem(run, d.it)) callbacks.onSell();
-        }),
-      );
+    if (!overTray(x, y)) {
+      if (d.where === 'board') sellGhost(d, run);
+      else bounceBack(d);
       return;
     }
 
-    const overBoard = hit(board(), e.clientX, e.clientY);
-
-    if (d.where === 'board') {
-      const slot = d.placeholder?.getBoundingClientRect();
-      settleGhost(d.ghost, slot, () => finish(() => commitBoardOrder(run)));
+    if (!d.valid || !d.plan) {
+      // over the tray but nowhere to go (no space / nothing matches)
+      if (d.where === 'shop') callbacks.onBuyFailed();
+      bounceBack(d);
       return;
     }
 
-    // shop origin
-    const mt = findMergeTarget(run.board, d.it);
-    const canDrop = overBoard && canDropOnBoard(run, d.it, 'shop');
-    const affordable = run.gold >= itemPrice(d.it, run.hero);
-
-    if (canDrop && affordable) {
-      const targetEl = mt ? board().querySelector<HTMLElement>(`.item[data-uid="${mt.uid}"]`) : d.placeholder;
-      const slot = targetEl?.getBoundingClientRect();
-      const insertAt = d.placeholder ? allItems().indexOf(d.placeholder) : run.board.length;
-      settleGhost(d.ghost, slot, () =>
-        finish(() => {
-          const res = buyItem(run, d.it, insertAt < 0 ? run.board.length : insertAt);
-          if (!res.ok) {
-            if (res.reason === 'no_gold') callbacks.onBuyFailed();
-          } else {
-            callbacks.onBuy();
-            if (res.merged) {
-              const merged = run.board.find((b) => b.uid === run.revealUid);
-              if (merged) callbacks.onMerge(merged);
-            }
-          }
-        }),
-      );
+    if (d.plan.kind === 'merge') {
+      commitMerge(d, run, d.plan.targetUid);
       return;
     }
-
-    if (canDrop && !affordable) callbacks.onBuyFailed();
-
-    // invalid drop — drift the ghost back to the source card, then restore
-    settleGhost(d.ghost, d.source.getBoundingClientRect(), () => finish());
+    commitPlace(d, run, d.plan.insertIdx);
   }
 
-  /** Reorder the model to match the live DOM order of the stall. */
-  function commitBoardOrder(run: RunState): void {
-    const order = allItems().map((el) => +el.dataset.uid!);
-    run.board.sort((a, b) => order.indexOf(a.uid) - order.indexOf(b.uid));
+  function commitPlace(d: Drag, run: RunState, insertIdx: number): void {
+    if (d.where === 'shop' && run.gold < itemPrice(d.it, run.hero)) {
+      callbacks.onBuyFailed();
+      bounceBack(d);
+      return;
+    }
+    const dest = destSpanClient(d.target, d.size);
+    settleGhostTo(d, dest, () => {
+      if (d.where === 'shop') {
+        const res = buyItem(run, d.it, insertIdx);
+        if (res.ok) callbacks.onBuy();
+      } else {
+        // reorder explicitly: drop the dragged ware into the others at insertIdx
+        const others = run.board.filter((b) => b.uid !== d.it.uid);
+        others.splice(clamp(insertIdx, 0, others.length), 0, d.it);
+        run.board.length = 0;
+        run.board.push(...others);
+      }
+      finishAndRefresh(d, d.it.uid, dest);
+    });
+  }
+
+  function commitMerge(d: Drag, run: RunState, targetUid: number): void {
+    if (d.where === 'shop' && run.gold < itemPrice(d.it, run.hero)) {
+      callbacks.onBuyFailed();
+      bounceBack(d);
+      return;
+    }
+    const targetEl = board().querySelector<HTMLElement>(`.tray-items .item[data-uid="${targetUid}"]`);
+    const tr = targetEl?.getBoundingClientRect();
+    const dest = tr
+      ? { x: tr.left, y: tr.top, w: tr.width, h: tr.height }
+      : destSpanClient(d.target, d.size);
+    settleGhostTo(d, dest, () => {
+      let ok = false;
+      if (d.where === 'shop') {
+        const res = buyItem(run, d.it, run.board.length, targetUid);
+        ok = res.ok && !!res.merged;
+        if (res.ok) callbacks.onBuy();
+      } else {
+        ok = mergeBoardItems(run, d.it.uid, targetUid);
+      }
+      const merged = ok ? run.board.find((x) => x.uid === run.revealUid) : undefined;
+      finishAndRefresh(d, run.revealUid, dest);
+      if (merged) callbacks.onMerge(merged);
+    });
+  }
+
+  function sellGhost(d: Drag, run: RunState): void {
+    const g = d.ghost;
+    const r = g?.getBoundingClientRect();
+    const cx = r ? r.left + r.width / 2 : d.tx;
+    const cy = r ? r.top + r.height / 2 : d.ty;
+    vibrate([10, 30]);
+    if (g && !reduceMotion) {
+      gsap.to(g, { y: '+=110', scale: 0.4, opacity: 0, rotation: 0, duration: 0.26, ease: 'power2.in' });
+    }
+    dustBurst(cx, r ? r.bottom : cy, d.size);
+    coinPop(cx, cy, sellValue(d.it));
+    if (sellItem(run, d.it)) callbacks.onSell();
+    window.setTimeout(() => finishAndRefresh(d), 260);
+  }
+
+  function bounceBack(d: Drag): void {
+    const g = d.ghost;
+    if (!g || reduceMotion) {
+      finishAndRefresh(d);
+      return;
+    }
+    if (d.where === 'board' && d.originStart >= 0) {
+      const dest = destSpanClient(clamp(d.originStart, 0, STALL_CAP - d.size), d.size);
+      settleGhostTo(d, dest, () => finishAndRefresh(d, d.it.uid, dest));
+      return;
+    }
+    const r = d.source.getBoundingClientRect();
+    gsap.to(g, {
+      x: r.left,
+      y: r.top,
+      width: r.width,
+      height: r.height,
+      scale: 0.92,
+      opacity: 0,
+      rotation: 0,
+      duration: 0.2,
+      ease: 'power2.in',
+      onComplete: () => finishAndRefresh(d),
+    });
+  }
+
+  /** Commit-side cleanup: refresh the stall, drop fx, remove ghost. */
+  function finishAndRefresh(
+    d: Drag,
+    animateUid?: number,
+    dust?: { x: number; y: number; w: number; h: number },
+  ): void {
+    callbacks.onShopChanged();
+    const run = callbacks.getRun();
+    if (run) renderStall(board(), run.board, animateUid);
+    if (dust && d.plan?.kind === 'place') dustBurst(dust.x + dust.w / 2, dust.y + dust.h, d.size);
+    cleanup(d);
+  }
+
+  function cleanup(d: Drag): void {
+    d.ghost?.remove();
+    d.ghost = null;
+    d.source.classList.remove('dragging');
+    const b = board();
+    b.classList.remove('hot', 'sell-hot');
+    clearSlotHints(b);
+    b.querySelector('.item.merge-target')?.classList.remove('merge-target');
   }
 
   function abortDrag(d: Drag): void {
     cancelAnimationFrame(d.raf);
     try {
-      d.source.releasePointerCapture(d.pointerId);
+      $('shop-screen').releasePointerCapture(d.pointerId);
     } catch {
       /* already released */
     }
@@ -415,7 +508,69 @@ export function createDragDrop(callbacks: DragDropCallbacks): { destroy(): void 
     if (d.moved) callbacks.onShopChanged();
   }
 
+  /* ------------------------------------------------------------------ *
+   * fx
+   * ------------------------------------------------------------------ */
+
+  function dustBurst(cx: number, cy: number, weight: number): void {
+    if (reduceMotion) return;
+    const count = 6 + weight * 5;
+    const spread = 14 + weight * 12;
+    for (let i = 0; i < count; i++) {
+      const p = document.createElement('div');
+      p.className = 'dust';
+      const sz = 3 + Math.random() * (3 + weight * 2);
+      p.style.width = p.style.height = `${sz}px`;
+      p.style.left = `${cx - sz / 2}px`;
+      p.style.top = `${cy - sz / 2}px`;
+      layer.appendChild(p);
+      const dir = Math.random() < 0.5 ? -1 : 1;
+      const ang = Math.random() * 0.5 + 0.05;
+      const dist = spread * (0.4 + Math.random() * 0.8);
+      const dxp = dir * Math.cos(ang) * dist;
+      const lift = -(6 + Math.random() * 10 * (weight / 3));
+      const fall = 4 + Math.random() * 8;
+      const dur = 420 + Math.random() * 320 + weight * 60;
+      p.animate(
+        [
+          { transform: 'translate(0,0) scale(1)', opacity: 0 },
+          { transform: `translate(${dxp * 0.5}px,${lift}px) scale(1)`, opacity: 0.85, offset: 0.25 },
+          { transform: `translate(${dxp}px,${fall}px) scale(.4)`, opacity: 0 },
+        ],
+        { duration: dur, easing: 'cubic-bezier(.2,.6,.3,1)' },
+      ).onfinish = () => p.remove();
+    }
+  }
+
+  function coinPop(x: number, y: number, amount: number): void {
+    if (reduceMotion) return;
+    const c = document.createElement('div');
+    c.className = 'coinpop';
+    c.textContent = `+${amount}`;
+    c.style.left = `${x}px`;
+    c.style.top = `${y}px`;
+    layer.appendChild(c);
+    c.animate(
+      [
+        { transform: 'translate(-50%,0) scale(.8)', opacity: 0 },
+        { transform: 'translate(-50%,-14px) scale(1)', opacity: 1, offset: 0.3 },
+        { transform: 'translate(-50%,-46px) scale(1)', opacity: 0 },
+      ],
+      { duration: 780, easing: 'cubic-bezier(.2,.8,.3,1)' },
+    ).onfinish = () => c.remove();
+  }
+
+  /* ------------------------------------------------------------------ *
+   * pointer plumbing
+   * ------------------------------------------------------------------ */
+
+  function findItem(run: RunState, uid: number, where: 'shop' | 'board'): ItemInstance | undefined {
+    const list = where === 'shop' ? run.shop : run.board;
+    return list.find((x) => x?.uid === uid) ?? undefined;
+  }
+
   function onPointerDown(e: PointerEvent): void {
+    if (drag) return;
     if (isItemSheetOpen()) return;
     if ((e.target as Element).closest('.cboard .item')) return;
     if ((e.target as Element).closest('#dock-avatar, #player-dock .btn')) return;
@@ -427,41 +582,47 @@ export function createDragDrop(callbacks: DragDropCallbacks): { destroy(): void 
     const run = callbacks.getRun();
     if (!run) return;
 
-    const uid = +el.dataset.uid;
     const where = el.dataset.where as 'shop' | 'board';
-    const it = findItem(run, uid, where);
+    const it = findItem(run, +el.dataset.uid, where);
     if (!it) return;
 
     const r = el.getBoundingClientRect();
+    const originStart =
+      where === 'board' ? packedStarts(run.board)[run.board.findIndex((b) => b.uid === it.uid)] ?? -1 : -1;
+
     drag = {
       it,
+      size: getItemDef(it).sz,
       where,
       source: el,
       ghost: null,
-      placeholder: null,
-      mergeEl: null,
       pointerId: e.pointerId,
       sx: e.clientX,
       sy: e.clientY,
-      ox: e.clientX - r.left,
-      oy: e.clientY - r.top,
-      w: r.width,
-      h: r.height,
+      grabDX: 0,
+      grabDY: 0,
+      tileH: r.height,
+      originStart,
       moved: false,
       decided: where === 'board',
       selling: false,
+      valid: false,
+      target: -1,
+      plan: null,
       px: 0,
       py: 0,
       tx: 0,
       ty: 0,
       vx: 0,
+      tilt: 0,
+      lifted: false,
       raf: 0,
     };
   }
 
   function onPointerMove(e: PointerEvent): void {
-    if (isItemSheetOpen()) return;
     if (!drag || e.pointerId !== drag.pointerId) return;
+    if (isItemSheetOpen()) return;
     const run = callbacks.getRun();
     if (!run) return;
 
@@ -469,7 +630,7 @@ export function createDragDrop(callbacks: DragDropCallbacks): { destroy(): void 
     const dy = e.clientY - drag.sy;
 
     if (!drag.decided) {
-      // shop cards: a mostly-horizontal swipe scrolls the carousel instead.
+      // a mostly-horizontal swipe on a shop card scrolls the carousel instead
       if (Math.abs(dx) > 6 && Math.abs(dx) >= Math.abs(dy)) {
         drag = null;
         return;
@@ -478,36 +639,34 @@ export function createDragDrop(callbacks: DragDropCallbacks): { destroy(): void 
       else return;
     }
 
-    if (!drag.moved && Math.hypot(dx, dy) > DRAG_THRESHOLD) beginDrag(drag);
+    if (!drag.moved && Math.hypot(dx, dy) > DRAG_THRESHOLD) beginDrag(drag, e.clientX, e.clientY);
 
     if (drag.moved) {
-      drag.tx = e.clientX - drag.ox;
-      drag.ty = e.clientY - drag.oy;
-      updatePreview(drag, e.clientX, e.clientY, run);
+      moveDrag(drag, e.clientX, e.clientY, run);
       e.preventDefault();
     }
   }
 
   function onPointerUp(e: PointerEvent): void {
     if (!drag || e.pointerId !== drag.pointerId) return;
-    if (isItemSheetOpen()) {
-      abortDrag(drag);
-      drag = null;
-      return;
-    }
     const d = drag;
     drag = null;
-    endDrag(d, e);
+    if (isItemSheetOpen()) {
+      abortDrag(d);
+      return;
+    }
+    endDrag(d, e.clientX, e.clientY);
   }
 
   function onPointerCancel(e: PointerEvent): void {
     if (!drag || e.pointerId !== drag.pointerId) return;
-    abortDrag(drag);
+    const d = drag;
     drag = null;
+    abortDrag(d);
   }
 
   document.addEventListener('pointerdown', onPointerDown);
-  document.addEventListener('pointermove', onPointerMove);
+  document.addEventListener('pointermove', onPointerMove, { passive: false });
   document.addEventListener('pointerup', onPointerUp);
   document.addEventListener('pointercancel', onPointerCancel);
 
@@ -517,6 +676,7 @@ export function createDragDrop(callbacks: DragDropCallbacks): { destroy(): void 
       document.removeEventListener('pointermove', onPointerMove);
       document.removeEventListener('pointerup', onPointerUp);
       document.removeEventListener('pointercancel', onPointerCancel);
+      layer.remove();
     },
   };
 }

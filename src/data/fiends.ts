@@ -20,11 +20,12 @@ export const FIENDS: readonly FiendDef[] = [
     nm: 'The Hollow Mourner',
     face: '👻',
     img: '/Images/The_Hollow_Mourner.png',
-    baseHp: 95,
+    baseHp: 100,
     threat: 'It weeps your strength into itself. End it quickly, before it drinks its fill.',
     hint: 'Drinks your strength — burst it down before it heals to full.',
     wares: [
-      { defId: 'chalice', tier: 0 },
+      { defId: 'chalice', tier: 1 },
+      { defId: 'bats', tier: 0 },
       { defId: 'rose', tier: 0 },
       { defId: 'nightcloak', tier: 0 },
     ],
@@ -40,7 +41,8 @@ export const FIENDS: readonly FiendDef[] = [
     wares: [
       { defId: 'cauldron', tier: 1 },
       { defId: 'hexpin', tier: 1 },
-      { defId: 'toadstool', tier: 0 },
+      { defId: 'cursedoll', tier: 0 },
+      { defId: 'toadstool', tier: 1 },
     ],
   },
   {
@@ -53,8 +55,9 @@ export const FIENDS: readonly FiendDef[] = [
     hint: "Knits itself back together. Fire won't finish it — use poison or a curse.",
     regen: 3,
     wares: [
-      { defId: 'moltenplate', tier: 0 },
+      { defId: 'moltenplate', tier: 1 },
       { defId: 'furnaceheart', tier: 0 },
+      { defId: 'bellows', tier: 0 },
     ],
   },
   {
@@ -66,7 +69,11 @@ export const FIENDS: readonly FiendDef[] = [
     threat: 'Its shell turns aside every blade. Find what slips through stone, or rot it from within.',
     hint: 'Its shell turns aside every blade. Bring pierce, or rot it with poison.',
     gimmick: { kind: 'ward', pct: 0.35 },
-    wares: [{ defId: 'tombstone', tier: 0 }],
+    wares: [
+      { defId: 'tombstone', tier: 0 },
+      { defId: 'furnaceheart', tier: 0 },
+      { defId: 'claws', tier: 1 },
+    ],
   },
   {
     id: 'widow-of-threads',

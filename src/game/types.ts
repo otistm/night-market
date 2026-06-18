@@ -43,6 +43,49 @@ export interface ItemEffects {
   curse?: number;
 }
 
+/** Stat deltas an adjacency synergy can grant. */
+export interface AdjBonus {
+  dmg?: number;
+  burn?: number;
+  poison?: number;
+  shield?: number;
+  heal?: number;
+  thorns?: number;
+  crit?: number;
+  execute?: number;
+  haste?: number;
+  slow?: number;
+  life?: number;
+  hits?: number;
+  ramp?: number;
+  curse?: number;
+}
+
+/**
+ * A bespoke adjacency synergy. Resolved at battle start from the ware's
+ * left/right neighbours in stall (board) order.
+ * - mode 'aura': buffs neighbouring wares (optionally only those with `targetTag`).
+ * - mode 'self': buffs this ware when a neighbour condition is met
+ *   (`needTag` / `flanked` / `perTag`).
+ */
+export interface AdjAbility {
+  mode: 'aura' | 'self';
+  /** self: at least one neighbour carries this tag. */
+  needTag?: ItemTag;
+  /** self: both sides are occupied. */
+  flanked?: boolean;
+  /** self: scale `add` by the count (0-2) of neighbours carrying this tag. */
+  perTag?: ItemTag;
+  /** aura: only buff neighbours carrying this tag (omit = both neighbours). */
+  targetTag?: ItemTag;
+  /** Additive stat deltas. */
+  add?: AdjBonus;
+  /** Cooldown scale on the affected ware(s); < 1 fires faster. */
+  cdMult?: number;
+  /** Human-readable synergy text for the item sheet. */
+  desc: string;
+}
+
 export interface ItemDef {
   id: string;
   nm: string;
@@ -51,6 +94,8 @@ export interface ItemDef {
   cd: number;
   eff: ItemEffects;
   tags: ItemTag[];
+  /** Bespoke adjacency synergy resolved from stall neighbours. */
+  adj?: AdjAbility;
   /** Owning peddler; their market stocks this ware more often. */
   heroId?: string;
   crit?: number;
@@ -68,6 +113,11 @@ export interface ItemDef {
   thorns?: number;
   /** Damage scales with held gold (+1 per 3 gold). */
   goldScale?: boolean;
+  /**
+   * Detonate: on trigger, deal bonus damage equal to the foe's current burn or
+   * poison stack, then clear that stack (a DoT payoff / pressure valve).
+   */
+  consume?: 'burn' | 'poison';
   /** Never sold in the market — wielded only by fiends. */
   fiendOnly?: boolean;
   flav: string;
@@ -77,6 +127,8 @@ export interface ItemInstance {
   uid: number;
   defId: string;
   tier: Tier;
+  /** Boss-reward wares are claimed for free (no gold cost) while offered. */
+  free?: boolean;
 }
 
 export interface HeroMult {
@@ -99,6 +151,8 @@ export interface HeroDef {
   mult: HeroMult;
   /** Vampire: lifesteal heals this much more (e.g. 1.5). */
   lifestealMult?: number;
+  /** Vampire: heals this fraction of the burn/poison damage foes suffer. */
+  dotLifesteal?: number;
   /** Griffin: added critical strike chance on all wares. */
   critBonus?: number;
   /** Werewolf: weapon damage ramps by this fraction per second of battle. */

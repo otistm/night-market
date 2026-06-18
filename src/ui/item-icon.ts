@@ -4,5 +4,5 @@ export function itemIconHtml(ico: string, alt = ''): string {
     const safeAlt = alt.replace(/"/g, '&quot;');
     return `<img src="${ico}" alt="${safeAlt}" loading="eager" decoding="async">`;
   }
-  return ico;
+  return `<span class="emoji-ico">${ico}</span>`;
 }

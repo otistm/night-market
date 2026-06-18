@@ -1,0 +1,38 @@
+---
+description: The player's stall must look and behave identically everywhere it appears
+globs: src/**/*.ts,src/**/*.css,index.html
+alwaysApply: false
+---
+
+# One Stall, Everywhere
+
+The player's stall is a single, canonical UI. It must **look and behave the same
+way any time it is displayed** in the game (shop, battle prep, boss-reward
+screen, and any future screen).
+
+## Rules
+
+- **Reuse the real `#board` element.** There is exactly one stall DOM node
+  (`#board.stall-tray`, rendered by `renderStall` in `src/ui/components/cards.ts`).
+  When another screen needs the stall, move/borrow that element and restore it on
+  close — never build a second, parallel stall markup.
+- **No bespoke restyling.** Do not wrap the stall in a container that changes its
+  borders, radius, background, sizing, or grid. The stall carries all its own
+  styling via `#board.stall-tray`. Panels/overlays may sit **above** the stall,
+  not around it.
+- **Identical interactions.** Drag, sell, merge, and reorder must work the same
+  everywhere. This is automatic if you reuse `#board` and keep `isShopActive()`
+  (in `src/app.ts`) returning true for the context, and call `refreshShop()` /
+  the relevant refresh so synergy glows and fit-state stay in sync.
+
+## Example: showing the stall under a panel
+
+```ts
+// ✅ GOOD — panel on top, the real stall mounted natively beneath it.
+overlay.appendChild(panelCard);
+overlay.appendChild(board); // the real #board, no special wrapper
+
+// ❌ BAD — a styled host box that gives the stall a different look.
+panelCard.innerHTML = `<div class="my-stall-host">...</div>`;
+host.appendChild(board); // now boxed/restyled, inconsistent with shop
+```
