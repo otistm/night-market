@@ -4,6 +4,7 @@ import type { ItemInstance, RunState } from '@/game/types';
 import { bossBounty } from '@/config/constants';
 import { rollBossRewards } from '@/game/run-state';
 import { createShopCard, renderStall } from '@/ui/components/cards';
+import { updateUpgradeHints } from '@/ui/upgrade-hints';
 import { sfx } from '@/fx/sfx';
 import { $ } from '@/ui/dom';
 
@@ -82,6 +83,9 @@ export function openRewardChoice({ run, onDone }: RewardChoiceOptions): void {
 
   overlay.classList.add('on');
   renderStall(board, run.board);
+  // Show the merge arrows when an offered ware can upgrade one already in the
+  // stall, exactly as the shop does (the cards/board exist by next frame).
+  requestAnimationFrame(() => updateUpgradeHints(run));
   refreshRewardChoice();
 
   if (!reduceMotion) {
@@ -103,25 +107,33 @@ function resolveGold(): void {
   onDone();
 }
 
-/** A ware was dragged into the stall (claimed via buyItem). Wrap things up. */
-function resolveClaimed(): void {
-  if (!active || active.resolved) return;
-  active.resolved = true;
-  const onDone = active.onDone;
-  closeRewardChoice();
-  onDone();
-}
-
 /**
  * Called after every stall change while the reward is open. If the ware has left
- * the shop it was claimed (placed or merged into the stall), so we resolve.
+ * the shop it was claimed (placed or merged into the stall) — hold briefly so the
+ * placement glide / merge upgrade animation plays on the still-visible stall, then
+ * wrap up. Otherwise just refresh the upgrade-arrow hints as the stall rearranges.
  */
 export function refreshRewardChoice(): void {
   if (!active || active.resolved) return;
   const { run, items } = active;
 
   const claimed = items.some((it) => !run.shop.some((s) => s?.uid === it.uid));
-  if (claimed) resolveClaimed();
+  if (!claimed) {
+    updateUpgradeHints(run);
+    return;
+  }
+
+  active.resolved = true;
+  const onDone = active.onDone;
+  // Let the placement/merge animation finish on the visible stall before the
+  // reward overlay tears down (the merge fx fires right after this call).
+  window.setTimeout(
+    () => {
+      closeRewardChoice();
+      onDone();
+    },
+    reduceMotion ? 0 : 480,
+  );
 }
 
 export function closeRewardChoice(): void {
@@ -135,10 +147,19 @@ export function closeRewardChoice(): void {
     active.boardHome.parent.insertBefore(board, active.boardHome.next);
     active = null;
   }
-  // Hide the battle arena now so the lords gallery and fade-to-shop never reveal
-  // it again — once the reward is chosen, the next thing the player sees is the
-  // shop (the battle screen is re-shown only when the next battle begins).
+  // Hide the battle arena and raise the black curtain now so the lords gallery
+  // and the fade-to-shop never reveal it again. The curtain sits below the gallery
+  // (which stays visible on top) but above every screen, so the player only ever
+  // sees: reward → lords gallery → shop. fadeThroughBlack lifts the curtain once
+  // the shop is built; the battle screen is re-shown only at the next battle.
   $('battle-screen').classList.remove('on');
+  if (!reduceMotion) {
+    const fade = document.getElementById('screen-fade');
+    if (fade) {
+      fade.classList.add('on');
+      gsap.set(fade, { opacity: 1 });
+    }
+  }
   $('reward-overlay').classList.remove('on');
 }
 

@@ -31,7 +31,11 @@ export function updateUpgradeHints(run: RunState): void {
   const boardUids = new Set(pairs.map((p) => p.boardUid));
 
   for (const uid of shopUids) {
-    const el = document.querySelector(`#carousel [data-uid="${uid}"]`);
+    // On the reward screen the offered ware lives in the (visible) reward panel
+    // rather than the (hidden) shop carousel — prefer it so the arrow shows there.
+    const el =
+      document.querySelector(`#reward-overlay.on #reward-wares [data-uid="${uid}"]`) ??
+      document.querySelector(`#carousel [data-uid="${uid}"]`);
     if (el instanceof HTMLElement) markElement(el);
   }
   for (const uid of boardUids) {

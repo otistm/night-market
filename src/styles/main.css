@@ -2932,7 +2932,10 @@ button.stat-chip {
 #screen-fade {
   position: absolute;
   inset: 0;
-  z-index: 200;
+  /* Above every screen (incl. result z110) but below the lords gallery (z118)
+     and reward overlay (z121), so the post-reward handoff can hold this black
+     curtain behind the gallery while the battle arena stays hidden. */
+  z-index: 117;
   background: #050308;
   opacity: 0;
   pointer-events: none;
