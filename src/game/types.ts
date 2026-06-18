@@ -147,6 +147,8 @@ export interface HeroDef {
   img?: string;
   tag: string;
   pass: string;
+  /** Signature accent colour (hex), themes the player's stall to the hero. */
+  accent: string;
   /** Flat multipliers on item effect values. */
   mult: HeroMult;
   /** Vampire: lifesteal heals this much more (e.g. 1.5). */

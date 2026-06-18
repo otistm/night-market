@@ -43,6 +43,72 @@ export function showScreen(id: ScreenId, skipChildren = false, instant = false):
   }
 }
 
+/** Wait until every <img> in `root` has loaded (or `timeoutMs` elapses). */
+export function awaitImages(root: ParentNode, timeoutMs = 900): Promise<void> {
+  const imgs = [...root.querySelectorAll('img')];
+  const pending = imgs.filter((img) => !img.complete);
+  if (pending.length === 0) return Promise.resolve();
+  return new Promise((resolve) => {
+    let done = false;
+    let left = pending.length;
+    const finish = (): void => {
+      if (done) return;
+      done = true;
+      resolve();
+    };
+    const tick = (): void => {
+      if (--left <= 0) finish();
+    };
+    for (const img of pending) {
+      img.addEventListener('load', tick, { once: true });
+      img.addEventListener('error', tick, { once: true });
+    }
+    window.setTimeout(finish, timeoutMs);
+  });
+}
+
+/**
+ * Fade the screen to black, run `prepare()` (swap/render the next screen) while
+ * the curtain hides it, wait for its art to load, then fade back in and run
+ * `reveal()`. Prevents the player from watching the shop's images/UI pop in.
+ */
+export async function fadeThroughBlack(
+  prepare: () => void,
+  reveal?: () => void,
+  opts: { settle?: () => Promise<void> } = {},
+): Promise<void> {
+  const el = document.getElementById('screen-fade');
+  if (!el || reduceMotion) {
+    prepare();
+    if (opts.settle) await opts.settle();
+    reveal?.();
+    return;
+  }
+
+  el.classList.add('on');
+  await new Promise<void>((res) => {
+    gsap.to(el, { opacity: 1, duration: 0.28, ease: 'power2.out', onComplete: () => res() });
+  });
+
+  prepare();
+  if (opts.settle) await opts.settle();
+  // One more frame so freshly-rendered tiles paint before we lift the curtain.
+  await new Promise<void>((res) => requestAnimationFrame(() => res()));
+
+  reveal?.();
+  await new Promise<void>((res) => {
+    gsap.to(el, {
+      opacity: 0,
+      duration: 0.42,
+      ease: 'power2.in',
+      onComplete: () => {
+        el.classList.remove('on');
+        res();
+      },
+    });
+  });
+}
+
 export function punch(el: Element | null, _scale = 1.16): void {
   if (!el || reduceMotion) return;
   gsap.fromTo(el, { scale: _scale }, { scale: 1, duration: 0.45, ease: 'elastic.out(1,.45)', clearProps: 'transform' });

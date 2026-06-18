@@ -5,6 +5,8 @@
   --amber2: #ff7a1a;
   --violet: #8b5cf6;
   --violet2: #5b34c9;
+  /* Player stall accent — overridden per-hero on #app at run start. */
+  --stall-accent: #8b5cf6;
   --ink: #f5ecd9;
   --dim: #9d8fb8;
   --blood: #ff4d6a;
@@ -26,7 +28,7 @@
   --dock-h: 74px;
   --dock-battle-h: 112px;
   --dock-pad: calc(var(--dock-h) + 10px);
-  --ware-ico-scale: 1.5;
+  --ware-ico-scale: 1.25;
 }
 
 /* shared glass panel — matches default .btn / reroll */
@@ -195,35 +197,12 @@ body {
 /* HUD */
 #hud {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   gap: 8px;
   z-index: 6;
   margin: calc(var(--safe-t) + 10px) var(--pad-x) 0;
-  padding: 10px 16px 12px;
-  border-radius: 24px;
-  background: rgba(20, 12, 34, 0.55);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
   flex-shrink: 0;
-}
-
-.hud-top {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  min-height: 32px;
-}
-
-.hud-stats {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  justify-content: center;
-  width: 100%;
 }
 
 .stat-chip {
@@ -236,7 +215,10 @@ body {
   letter-spacing: 0.06em;
   padding: 8px 12px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.07);
+  /* Blurred gradient fill, matching the shop container panel. */
+  background: linear-gradient(180deg, rgba(36, 24, 56, 0.6), rgba(20, 12, 34, 0.55));
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.13);
   min-height: 36px;
   color: inherit;
@@ -275,9 +257,7 @@ button.stat-chip {
   font-size: 12px;
   letter-spacing: 0.18em;
   color: var(--amber);
-  text-align: center;
-  width: 100%;
-  padding: 0 36px;
+  white-space: nowrap;
 }
 
 #hud .gold {
@@ -870,7 +850,7 @@ button.stat-chip {
   overflow: visible;
 }
 
-/* Emoji-rendered ware icons read a touch large next to the painted art. */
+/* Emoji ware icons sit slightly smaller within their slot. */
 .emoji-ico {
   display: inline-block;
   font-size: 0.85em;
@@ -934,16 +914,18 @@ button.stat-chip {
 }
 
 .shop-exit-btn {
-  position: absolute;
-  top: 50%;
-  right: 0;
+  margin-left: auto;
+  flex-shrink: 0;
   z-index: 1;
   width: 32px;
   height: 32px;
   padding: 0;
   border-radius: 50%;
   border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.08);
+  /* Blurred gradient fill, matching the shop container panel. */
+  background: linear-gradient(180deg, rgba(36, 24, 56, 0.6), rgba(20, 12, 34, 0.55));
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   color: rgba(255, 243, 214, 0.92);
   font-size: 20px;
   line-height: 1;
@@ -951,13 +933,12 @@ button.stat-chip {
   display: flex;
   align-items: center;
   justify-content: center;
-  transform: translateY(-50%);
   -webkit-tap-highlight-color: transparent;
   transition: transform 0.1s, background 0.15s, border-color 0.15s;
 }
 
 .shop-exit-btn:active {
-  transform: translateY(-50%) scale(0.94);
+  transform: scale(0.94);
 }
 
 #battle-screen.on {
@@ -1390,9 +1371,14 @@ button.stat-chip {
   gap: 8px;
   min-height: calc(var(--card-h) + 26px);
   padding: 12px max(12px, var(--safe-l)) 12px max(12px, var(--safe-r));
-  background: rgba(0, 0, 0, 0.3);
-  border-top: 1.5px dashed rgba(255, 255, 255, 0.2);
-  border-bottom: 1.5px dashed rgba(255, 255, 255, 0.2);
+  /* Opaque fill tinted to the chosen hero's signature accent (--stall-accent). */
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--stall-accent) 24%, #140d22),
+    color-mix(in srgb, var(--stall-accent) 12%, #0c0717)
+  );
+  border-top: 1.5px dashed color-mix(in srgb, var(--stall-accent) 60%, transparent);
+  border-bottom: 1.5px dashed color-mix(in srgb, var(--stall-accent) 60%, transparent);
   touch-action: none;
   overflow: visible;
 }
@@ -1564,10 +1550,13 @@ button.stat-chip {
   gap: 12px;
   min-height: var(--dock-h);
   padding: 8px max(12px, var(--pad-x)) calc(8px + var(--safe-b));
-  background: rgba(20, 12, 34, 0.92);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  /* Opaque fill tinted to the chosen hero's accent, matching the stall. */
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--stall-accent) 20%, #140d22),
+    color-mix(in srgb, var(--stall-accent) 10%, #0c0717)
+  );
+  border-top: 1px solid color-mix(in srgb, var(--stall-accent) 45%, transparent);
 }
 
 #player-dock.hidden {
@@ -1747,9 +1736,14 @@ button.stat-chip {
 #p-board.cboard {
   min-height: calc(var(--card-h) + 26px);
   padding: 12px max(12px, var(--safe-l)) 12px max(12px, var(--safe-r));
-  background: rgba(0, 0, 0, 0.3);
-  border-top: 1.5px dashed rgba(255, 255, 255, 0.2);
-  border-bottom: 1.5px dashed rgba(255, 255, 255, 0.2);
+  /* Mirror the shop stall's opaque hero-accent tint so it never shifts between screens. */
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--stall-accent) 24%, #140d22),
+    color-mix(in srgb, var(--stall-accent) 12%, #0c0717)
+  );
+  border-top: 1.5px dashed color-mix(in srgb, var(--stall-accent) 60%, transparent);
+  border-bottom: 1.5px dashed color-mix(in srgb, var(--stall-accent) 60%, transparent);
   overflow-x: hidden;
   touch-action: pan-y;
 }
@@ -2548,31 +2542,6 @@ button.stat-chip {
   color: var(--dim);
 }
 
-/* Capacity + sell hint live inside the panel; the stall stays pristine. */
-.reward-stall-note {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: center;
-  gap: 4px 10px;
-  margin: 0;
-  padding-top: 14px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  font-size: 11.5px;
-  color: var(--dim);
-}
-
-.reward-stall-cap {
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  font-variant-numeric: tabular-nums;
-}
-
-.reward-stall-cap.full {
-  color: var(--blood);
-}
-
 #app.item-sheet-open #btn-reroll {
   display: none;
 }
@@ -2915,6 +2884,21 @@ button.stat-chip {
 }
 
 /* shop opening splash */
+/* Full-screen black curtain used to mask screen transitions (e.g. the shop
+   loading its art) so nothing pops in while the user watches. */
+#screen-fade {
+  position: absolute;
+  inset: 0;
+  z-index: 200;
+  background: #050308;
+  opacity: 0;
+  pointer-events: none;
+}
+
+#screen-fade.on {
+  pointer-events: auto;
+}
+
 .shop-opening {
   position: absolute;
   inset: 0;

@@ -7,6 +7,8 @@ import { createBackground3D } from '@/fx/background3d';
 import { createFxSystem } from '@/fx/particles';
 import { initAudioUnlock, sfx } from '@/fx/sfx';
 import {
+  awaitImages,
+  fadeThroughBlack,
   flashGold,
   punch,
   shopEntrance,
@@ -231,13 +233,20 @@ export class NightMarketApp {
     if (!this.run) return;
     showResultScreen(this.run, combat, won, this.fx, this.bg, {
       onContinue: () => {
-        rollShop(this.run!);
-        this.refreshShop();
-        showDockShop();
-        showScreen('shop-screen');
-        shopEntrance();
-        this.bg.setMood('shop');
-        this.battle.stop();
+        // Fade to black, build the shop behind the curtain and wait for its art
+        // to load, then reveal — so the player never watches the shop pop in.
+        void fadeThroughBlack(
+          () => {
+            rollShop(this.run!);
+            this.refreshShop();
+            showDockShop();
+            showScreen('shop-screen', true, true);
+            this.bg.setMood('shop');
+            this.battle.stop();
+          },
+          () => shopEntrance(),
+          { settle: () => awaitImages($('shop-screen')) },
+        );
       },
       onRunEnd: () => {
         this.run = null;

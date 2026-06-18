@@ -1,9 +1,8 @@
 import { reduceMotion } from '@/fx/animations';
 import gsap from 'gsap';
 import type { ItemInstance, RunState } from '@/game/types';
-import { STALL_CAP, bossBounty } from '@/config/constants';
-import { canPlaceItem, rollBossRewards } from '@/game/run-state';
-import { usedBoardCap } from '@/game/economy';
+import { bossBounty } from '@/config/constants';
+import { rollBossRewards } from '@/game/run-state';
 import { createShopCard, renderStall } from '@/ui/components/cards';
 import { sfx } from '@/fx/sfx';
 import { $ } from '@/ui/dom';
@@ -41,7 +40,8 @@ export function openRewardChoice({ run, onDone }: RewardChoiceOptions): void {
   const card = $('reward-card');
   const overlay = $('reward-overlay');
   const gold = bossBounty(run.day);
-  const items = rollBossRewards(run, 2);
+  // Two rewards to choose between: one ware or the gold.
+  const items = rollBossRewards(run, 1);
 
   // Back the cards with the shop so the existing drag-drop can claim them.
   run.shop = items.slice();
@@ -68,11 +68,7 @@ export function openRewardChoice({ run, onDone }: RewardChoiceOptions): void {
         <span class="reward-gold-amt">+${gold}</span>
         <span class="reward-gold-label">Take gold</span>
       </button>
-    </div>
-    <p class="reward-stall-note">
-      <span class="reward-stall-cap" id="reward-cap"></span>
-      <span id="reward-stall-hint">Drag a ware into your stall, or take the gold.</span>
-    </p>`;
+    </div>`;
 
   const wares = card.querySelector('#reward-wares') as HTMLElement;
   for (const it of items) wares.appendChild(createShopCard(it, run.hero));
@@ -117,36 +113,15 @@ function resolveClaimed(): void {
 }
 
 /**
- * Called after every stall change while the reward is open. If one of the two
- * wares has left the shop it was claimed (placed or merged into the stall), so
- * we resolve. Otherwise we just refresh the capacity hint.
+ * Called after every stall change while the reward is open. If the ware has left
+ * the shop it was claimed (placed or merged into the stall), so we resolve.
  */
 export function refreshRewardChoice(): void {
   if (!active || active.resolved) return;
-  const { run, items, gold } = active;
+  const { run, items } = active;
 
   const claimed = items.some((it) => !run.shop.some((s) => s?.uid === it.uid));
-  if (claimed) {
-    resolveClaimed();
-    return;
-  }
-
-  const card = $('reward-card');
-  const used = usedBoardCap(run.board);
-  const anyFits = items.some((it) => canPlaceItem(run.board, it));
-
-  const cap = card.querySelector('#reward-cap');
-  if (cap) {
-    cap.textContent = `Your stall ${used}/${STALL_CAP}`;
-    cap.classList.toggle('full', !anyFits);
-  }
-
-  const stallHint = card.querySelector('#reward-stall-hint');
-  if (stallHint) {
-    stallHint.textContent = anyFits
-      ? `Drag a ware into your stall, or take +${gold} gold.`
-      : 'Stall full — drag a ware off to sell it and make room, or take the gold.';
-  }
+  if (claimed) resolveClaimed();
 }
 
 export function closeRewardChoice(): void {

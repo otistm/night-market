@@ -126,18 +126,13 @@
 
       <div id="hud">
 
-        <div class="hud-top">
-          <span class="day" id="hud-day">NIGHT I</span>
-          <button type="button" class="shop-exit-btn" id="btn-shop-exit" aria-label="Start new run">×</button>
-        </div>
+        <span class="day" id="hud-day">NIGHT I</span>
 
-        <div class="hud-stats">
+        <button type="button" class="stat-chip win" id="hud-wins" aria-label="The 10 Lords"><span class="stat-ico" aria-hidden="true">⚔</span><span id="hud-wins-val">0 / 10</span></button>
 
-          <button type="button" class="stat-chip win" id="hud-wins" aria-label="The 10 Lords"><span class="stat-ico" aria-hidden="true">⚔</span><span id="hud-wins-val">0 / 10</span></button>
+        <button type="button" class="stat-chip life" id="hud-lives" aria-label="Hearts"><span class="stat-ico" aria-hidden="true">❤</span><span id="hud-lives-val">3 / 3</span></button>
 
-          <button type="button" class="stat-chip life" id="hud-lives" aria-label="Hearts"><span class="stat-ico" aria-hidden="true">❤</span><span id="hud-lives-val">3 / 3</span></button>
-
-        </div>
+        <button type="button" class="shop-exit-btn" id="btn-shop-exit" aria-label="Start new run">×</button>
 
       </div>
 
@@ -274,6 +269,8 @@
     </div>
 
     <div id="result-screen"></div>
+
+    <div id="screen-fade" aria-hidden="true"></div>
 
 
 

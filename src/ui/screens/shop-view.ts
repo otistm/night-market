@@ -8,6 +8,10 @@ import { romans } from '@/utils/romans';
 import { $ } from '@/ui/dom';
 
 export function renderShop(run: RunState): void {
+  // Theme the shared stall to the chosen hero. Set on #app so the accent
+  // persists across the shop, battle and reward screens (one stall, everywhere).
+  $('app').style.setProperty('--stall-accent', run.hero.accent);
+
   $('hud-day').textContent = `NIGHT ${romans(run.day)}`;
   $('hud-gold').textContent = String(run.gold);
   $('reroll-cost').textContent = String(run.rerollCost);

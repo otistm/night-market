@@ -52,7 +52,7 @@ export function showResultScreen(
     btn = 'Try Again';
   } else if (won) {
     kick = `Night ${romans(run.day)}`;
-    title = 'VICTORY';
+    title = 'SLAIN';
     body = `${combat.enemyMeta.nm} packs up in disgrace.`;
     reward = '<span>+<b id="rw-gold">0</b> gold</span><span>+10 max HP</span>';
   } else {
